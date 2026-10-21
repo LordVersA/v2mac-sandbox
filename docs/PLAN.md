@@ -205,9 +205,9 @@ Plugins with a newer `api` are hidden with "Update V2Mac"; a breaking change mea
 ## 11. Milestones (each behind "Sandbox (beta)", dev build first)
 
 ### M0 — Spikes
-| # | Task | Go | No-go → |
-|---|---|---|---|
-| 0.1 | Ad-hoc signed helper with `com.apple.security.virtualization`, launched by V2Mac, boots a VM | works | sandbox only in Developer ID builds; decide before M1 |
+| # | Task | Go | No-go → | Result |
+|---|---|---|---|---|
+| 0.1 | Ad-hoc signed helper with `com.apple.security.virtualization`, launched by V2Mac, boots a VM | works | sandbox only in Developer ID builds; decide before M1 | **Go** (2026-10-22): V2MacDev → ad-hoc helper → Debian trixie kernel+initrd reaches init in 0.75 s. `spikes/01-adhoc-vz` |
 | 0.2 | Own LTS kernel + Debian userland: boot time, idle RAM | < 3 s, < 250 MB | trim config/rootfs |
 | 0.3 | Swift Static Linux SDK agent: size, vsock, netlink/podman calls | < 15 MB, works | Go agent, protocol written twice |
 | 0.4 | vsock relay throughput + latency (TCP and UDP-in-VLESS) | ≥ 300 Mbit/s, < 1 ms | tune relay |
