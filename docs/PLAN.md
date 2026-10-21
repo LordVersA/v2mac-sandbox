@@ -86,8 +86,10 @@ virtio-sound, entropy, balloon. **No network device.** VZ has no 3D GPU for Linu
 gateway relays, VNC and pty forwarding; accepts a fixed message set from the helper only.
 
 **Isolation: rootless Podman + crun, one pod per mini VM.** Every container: user namespace,
-`--cap-drop=all`, `no-new-privileges`, read-only rootfs, seccomp **denying `socket(AF_VSOCK)`**
-**[verify]**, cgroup limits per pod, pod netns created by the gateway.
+`--cap-drop=all`, `no-new-privileges`, read-only rootfs, our seccomp profile (Podman's default with
+`socket` narrowed to a family allowlist without AF_VSOCK; the default allows it), cgroup limits set by the
+agent from outside (rootless `--memory` is ignored), and the pod's own netns, into which the agent moves
+the gateway's veth (rootless can't join a root-made netns). Verified in M0 0.5.
 
 ## 4. Network: gateway and per-VM exits
 ```
@@ -211,7 +213,7 @@ Plugins with a newer `api` are hidden with "Update V2Mac"; a breaking change mea
 | 0.2 | Own LTS kernel + Debian userland: boot time, idle RAM | < 3 s, < 250 MB | trim config/rootfs | **Go** (2026-10-22): 6.18.58 from `allnoconfig` + fragment (10.4 MB `Image`), trixie minbase+systemd+podman as lz4hc erofs (185 MB); multi-user in 0.40 s, idle 52 MB used + 146 MB cache. `spikes/02-kernel-rootfs` |
 | 0.3 | Swift Static Linux SDK agent: size, vsock, netlink/podman calls | < 15 MB, works | Go agent, protocol written twice | **Go** (2026-10-22): Musl-only agent 6.5 MB stripped; vsock listen, raw netlink dump, `posix_spawn` podman all work. Must build in the `swift:6.4.0` container (Xcode's compiler rejects the swift.org SDK). Foundation not yet measured. `spikes/03-static-agent` |
 | 0.4 | vsock relay throughput + latency (TCP and UDP-in-VLESS) | ≥ 300 Mbit/s, < 1 ms | tune relay | **Go** for raw vsock (2026-10-22): 29 µs round trip, 3.0 Gbit/s each way duplex. The xray TCP relay and UDP-in-VLESS ride on this; measure them end to end in M2. Second `connect(toPort:)` from inside a connect handler crashes VZ: hop to the main queue. |
-| 0.5 | Rootless Podman pods on gateway netns; seccomp denies AF_VSOCK | both | custom profile / bubblewrap |
+| 0.5 | Rootless Podman pods on gateway netns; seccomp denies AF_VSOCK | both | custom profile / bubblewrap | **Go, changed** (2026-10-22): rootless `setns` into a root-made netns is EPERM, so the pod makes its own netns and the agent moves the veth in (pod can't touch it). Podman's default seccomp **allows** AF_VSOCK; our family-allowlist profile denies it. Rootless `--memory` is ignored, so the agent puts the pod in a limited cgroup from outside. Also needed: `pivot_root` init (no user ns in chroot), netavark `firewall_driver=none`, `cgroup_manager=cgroupfs`, `default_sysctls=[]`, storage on the data disk. `spikes/02-kernel-rootfs/spike05.sh` |
 | 0.6 | `xray api adi/adrules` in 26.10.21 | exists | restart sandbox core | **Go** (2026-10-22): `adi`, `ado`, `adrules -append` add a working path live; `rmrules`, `rmi`, `rmo` remove it. `spikes/06-xray-api` |
 | 0.7 | cage + wayvnc + prototype RFB, `hello-gui` + heavy page, 1× and 2× | smooth 2× < 1 core | 1× + scaling; then libkrun spike |
 | 0.8 | Input: Persian, IME, ⌘ mapping, trackpad | usable | extended keysym/text messages |

@@ -33,7 +33,7 @@ out.fileHandleForReading.readabilityHandler = { h in
         print(String(format: "\n[spike] multi-user reached, host wall clock %.2f s", Date().timeIntervalSince(start)))
         DispatchQueue.main.async(execute: askAgent)
     }
-    if s.contains("V2MAC-MEM") { DispatchQueue.main.asyncAfter(deadline: .now() + 20) { exit(0) } }
+    if s.contains("S05 done") { DispatchQueue.main.asyncAfter(deadline: .now() + 20) { exit(0) } }
 }
 // Spike 0.4: latency (1-byte ping-pong) and duplex throughput over vsock 1025 (agent echo).
 func measure() {
@@ -75,5 +75,5 @@ func askAgent() {
 }
 let vm = VZVirtualMachine(configuration: config)
 vm.start { if case .failure(let e) = $0 { print("[spike] start failed: \(e)"); exit(1) } }
-DispatchQueue.main.asyncAfter(deadline: .now() + 60) { print("\n[spike] timeout"); exit(1) }
+DispatchQueue.main.asyncAfter(deadline: .now() + 120) { print("\n[spike] timeout"); exit(1) }
 dispatchMain()

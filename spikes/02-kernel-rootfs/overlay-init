@@ -1,8 +1,9 @@
 #!/bin/sh
-# Read-only erofs root + tmpfs upper, then hand over to systemd.
-mount -t proc proc /proc
+# Read-only erofs root + tmpfs upper, then pivot to it and hand over to systemd.
+# pivot_root, not chroot: the kernel refuses user namespaces inside a chroot.
 mount -t tmpfs -o mode=755 tmpfs /run
 mkdir -p /run/o/upper /run/o/work /run/o/root
 mount -t overlay overlay -o lowerdir=/,upperdir=/run/o/upper,workdir=/run/o/work /run/o/root
-umount /proc
-exec chroot /run/o/root /sbin/init "$@"
+mount --make-rprivate /
+cd /run/o/root && mkdir -p .old && pivot_root . .old
+exec chroot . /bin/sh -c 'umount -l /.old; exec /sbin/init' "$@"

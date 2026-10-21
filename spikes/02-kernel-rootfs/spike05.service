@@ -1,0 +1,7 @@
+[Unit]
+After=agent.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/spike05.sh
+[Install]
+WantedBy=multi-user.target
