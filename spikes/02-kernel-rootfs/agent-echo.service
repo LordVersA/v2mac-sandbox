@@ -1,0 +1,6 @@
+[Unit]
+Description=V2Mac VM agent echo (spike 0.4)
+[Service]
+ExecStart=/usr/local/bin/agent echo
+[Install]
+WantedBy=multi-user.target

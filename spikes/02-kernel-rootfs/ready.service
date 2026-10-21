@@ -1,0 +1,8 @@
+[Unit]
+Description=Tell the host we are up
+After=multi-user.target
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'echo "V2MAC-READY $(cut -d" " -f1 /proc/uptime)" > /dev/hvc0; sleep 15; echo "V2MAC-MEM $(free -m | awk "/Mem:/{print \\$3}") MB used, $(free -m | awk "/Mem:/{print \\$6}") MB buff/cache" > /dev/hvc0'
+[Install]
+WantedBy=multi-user.target

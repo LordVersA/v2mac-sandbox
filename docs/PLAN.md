@@ -208,11 +208,11 @@ Plugins with a newer `api` are hidden with "Update V2Mac"; a breaking change mea
 | # | Task | Go | No-go → | Result |
 |---|---|---|---|---|
 | 0.1 | Ad-hoc signed helper with `com.apple.security.virtualization`, launched by V2Mac, boots a VM | works | sandbox only in Developer ID builds; decide before M1 | **Go** (2026-10-22): V2MacDev → ad-hoc helper → Debian trixie kernel+initrd reaches init in 0.75 s. `spikes/01-adhoc-vz` |
-| 0.2 | Own LTS kernel + Debian userland: boot time, idle RAM | < 3 s, < 250 MB | trim config/rootfs |
-| 0.3 | Swift Static Linux SDK agent: size, vsock, netlink/podman calls | < 15 MB, works | Go agent, protocol written twice |
-| 0.4 | vsock relay throughput + latency (TCP and UDP-in-VLESS) | ≥ 300 Mbit/s, < 1 ms | tune relay |
+| 0.2 | Own LTS kernel + Debian userland: boot time, idle RAM | < 3 s, < 250 MB | trim config/rootfs | **Go** (2026-10-22): 6.18.58 from `allnoconfig` + fragment (10.4 MB `Image`), trixie minbase+systemd+podman as lz4hc erofs (185 MB); multi-user in 0.40 s, idle 52 MB used + 146 MB cache. `spikes/02-kernel-rootfs` |
+| 0.3 | Swift Static Linux SDK agent: size, vsock, netlink/podman calls | < 15 MB, works | Go agent, protocol written twice | **Go** (2026-10-22): Musl-only agent 6.5 MB stripped; vsock listen, raw netlink dump, `posix_spawn` podman all work. Must build in the `swift:6.4.0` container (Xcode's compiler rejects the swift.org SDK). Foundation not yet measured. `spikes/03-static-agent` |
+| 0.4 | vsock relay throughput + latency (TCP and UDP-in-VLESS) | ≥ 300 Mbit/s, < 1 ms | tune relay | **Go** for raw vsock (2026-10-22): 29 µs round trip, 3.0 Gbit/s each way duplex. The xray TCP relay and UDP-in-VLESS ride on this; measure them end to end in M2. Second `connect(toPort:)` from inside a connect handler crashes VZ: hop to the main queue. |
 | 0.5 | Rootless Podman pods on gateway netns; seccomp denies AF_VSOCK | both | custom profile / bubblewrap |
-| 0.6 | `xray api adi/adrules` in 26.10.21 | exists | restart sandbox core |
+| 0.6 | `xray api adi/adrules` in 26.10.21 | exists | restart sandbox core | **Go** (2026-10-22): `adi`, `ado`, `adrules -append` add a working path live; `rmrules`, `rmi`, `rmo` remove it. `spikes/06-xray-api` |
 | 0.7 | cage + wayvnc + prototype RFB, `hello-gui` + heavy page, 1× and 2× | smooth 2× < 1 core | 1× + scaling; then libkrun spike |
 | 0.8 | Input: Persian, IME, ⌘ mapping, trackpad | usable | extended keysym/text messages |
 | 0.9 | virtio-sound + PipeWire | plays | audio after v1 |

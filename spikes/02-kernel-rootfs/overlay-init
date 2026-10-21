@@ -1,0 +1,8 @@
+#!/bin/sh
+# Read-only erofs root + tmpfs upper, then hand over to systemd.
+mount -t proc proc /proc
+mount -t tmpfs -o mode=755 tmpfs /run
+mkdir -p /run/o/upper /run/o/work /run/o/root
+mount -t overlay overlay -o lowerdir=/,upperdir=/run/o/upper,workdir=/run/o/work /run/o/root
+umount /proc
+exec chroot /run/o/root /sbin/init "$@"

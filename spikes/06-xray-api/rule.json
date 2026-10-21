@@ -1,0 +1,1 @@
+{"routing":{"rules":[{"ruleTag":"r-A","inboundTag":["vm-A"],"outboundTag":"host-A"}]}}

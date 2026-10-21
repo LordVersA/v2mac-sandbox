@@ -1,2 +1,9 @@
 spikes/*/vm/
 spikes/*/helper
+spikes/*/boot
+spikes/*/agent
+spikes/*/out/
+spikes/*/.build/
+spikes/*/core.log
+.DS_Store
+spikes/*/build.log

@@ -1,0 +1,1 @@
+{"inbounds":[{"tag":"vm-A","listen":"127.0.0.1","port":19086,"protocol":"socks","settings":{"udp":true}}]}

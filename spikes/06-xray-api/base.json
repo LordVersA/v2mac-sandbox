@@ -1,0 +1,4 @@
+{"api":{"tag":"api","services":["HandlerService","RoutingService"]},
+ "inbounds":[{"tag":"api","listen":"127.0.0.1","port":19085,"protocol":"dokodemo-door","settings":{"address":"127.0.0.1"}}],
+ "outbounds":[{"tag":"block","protocol":"blackhole"}],
+ "routing":{"rules":[{"inboundTag":["api"],"outboundTag":"api"}]}}
