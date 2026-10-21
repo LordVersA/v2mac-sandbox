@@ -33,8 +33,59 @@ out.fileHandleForReading.readabilityHandler = { h in
         print(String(format: "\n[spike] multi-user reached, host wall clock %.2f s", Date().timeIntervalSince(start)))
         DispatchQueue.main.async(execute: askAgent)
     }
-    if s.contains("S05 done") { DispatchQueue.main.asyncAfter(deadline: .now() + 20) { exit(0) } }
+    if s.contains("S05 done") { print("[spike] S05 done") }
 }
+// Spike 0.11: Unix socket for v2mac-pty → vsock 1026 (guest pty), and vsock 1027 from the guest → host ssh-agent.
+var keep: [AnyObject] = []
+func pipeBoth(_ a: Int32, _ b: Int32) {
+    for (from, to) in [(a, b), (b, a)] {
+        Thread.detachNewThread {
+            var buf = [UInt8](repeating: 0, count: 65536)
+            while case let n = read(from, &buf, buf.count), n > 0 { if write(to, buf, n) != n { break } }
+            shutdown(to, SHUT_WR)
+        }
+    }
+}
+func unixSocket(_ path: String, listen doListen: Bool) -> Int32 {
+    let s = socket(AF_UNIX, SOCK_STREAM, 0)
+    var addr = sockaddr_un(); addr.sun_family = sa_family_t(AF_UNIX)
+    withUnsafeMutableBytes(of: &addr.sun_path) { p in for (i, ch) in path.utf8.enumerated() { p[i] = ch } }
+    let rc = withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+        doListen ? bind(s, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) : connect(s, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) } }
+    if rc != 0 { return -1 }
+    if doListen { Darwin.listen(s, 8) }
+    return s
+}
+func servePty() {
+    let path = "/tmp/v2mac-pty-spike.sock"
+    unlink(path)
+    let s = unixSocket(path, listen: true)
+    chmod(path, 0o600)
+    print("[spike] pty socket \(path)")
+    Thread.detachNewThread {
+        while true {
+            let c = accept(s, nil, nil)
+            if c < 0 { continue }
+            DispatchQueue.main.async {
+                (vm.socketDevices.first as? VZVirtioSocketDevice)?.connect(toPort: 1026) { r in
+                    guard case .success(let v) = r else { print("[spike] pty vsock failed"); close(c); return }
+                    keep.append(v); pipeBoth(c, v.fileDescriptor)
+                }
+            }
+        }
+    }
+}
+final class SSHForward: NSObject, VZVirtioSocketListenerDelegate {
+    func listener(_ l: VZVirtioSocketListener, shouldAcceptNewConnection c: VZVirtioSocketConnection, from d: VZVirtioSocketDevice) -> Bool {
+        guard let path = ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] else { return false }
+        let s = unixSocket(path, listen: false)
+        guard s >= 0 else { return false }
+        keep.append(c); pipeBoth(c.fileDescriptor, s)
+        return true
+    }
+}
+let sshForward = SSHForward()
+
 // Spike 0.4: latency (1-byte ping-pong) and duplex throughput over vsock 1025 (agent echo).
 func measure() {
     (vm.socketDevices.first as? VZVirtioSocketDevice)?.connect(toPort: 1025) { result in
@@ -74,6 +125,10 @@ func askAgent() {
     }
 }
 let vm = VZVirtualMachine(configuration: config)
-vm.start { if case .failure(let e) = $0 { print("[spike] start failed: \(e)"); exit(1) } }
-DispatchQueue.main.asyncAfter(deadline: .now() + 120) { print("\n[spike] timeout"); exit(1) }
+vm.start {
+    if case .failure(let e) = $0 { print("[spike] start failed: \(e)"); exit(1) }
+    let l = VZVirtioSocketListener(); l.delegate = sshForward
+    (vm.socketDevices.first as? VZVirtioSocketDevice)?.setSocketListener(l, forPort: 1027)
+    keep.append(l); servePty()
+}
 dispatchMain()

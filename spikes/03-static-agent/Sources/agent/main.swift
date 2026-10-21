@@ -73,6 +73,102 @@ func listenVsock(_ port: UInt32) -> Int32 {
     return s
 }
 
+
+// Copies both ways until either side closes.
+func relay(_ a: Int32, _ b: Int32, frames: Bool = false, pty: Int32 = -1) {
+    var fds = [pollfd(fd: a, events: Int16(POLLIN), revents: 0), pollfd(fd: b, events: Int16(POLLIN), revents: 0)]
+    var buf = [UInt8](repeating: 0, count: 65536)
+    var pending = [UInt8]()
+    while poll(&fds, 2, -1) > 0 {
+        for i in 0..<2 where fds[i].revents != 0 {
+            let n = read(fds[i].fd, &buf, buf.count)
+            if n <= 0 { return }
+            if i == 0 && frames { pending += buf[0..<n]; pending = deframe(pending, to: b, pty: pty) }
+            else { _ = writeAll(i == 0 ? b : a, Array(buf[0..<n])) }
+        }
+    }
+}
+@discardableResult func writeAll(_ fd: Int32, _ bytes: [UInt8]) -> Bool {
+    var off = 0
+    while off < bytes.count { let w = bytes[off...].withUnsafeBytes { write(fd, $0.baseAddress, bytes.count - off) }; if w <= 0 { return false }; off += w }
+    return true
+}
+// pty input frames: [0][u16 len][bytes] = keyboard, [1][u16 rows][u16 cols] = resize. Returns leftover bytes.
+func deframe(_ b: [UInt8], to fd: Int32, pty: Int32) -> [UInt8] {
+    var i = 0
+    func u16(_ at: Int) -> Int { Int(b[at]) << 8 | Int(b[at + 1]) }
+    while i + 3 <= b.count {
+        if b[i] == 0 {
+            let len = u16(i + 1)
+            guard i + 3 + len <= b.count else { break }
+            writeAll(fd, Array(b[(i + 3)..<(i + 3 + len)])); i += 3 + len
+        } else {
+            guard i + 5 <= b.count else { break }
+            var ws = winsize(ws_row: UInt16(u16(i + 1)), ws_col: UInt16(u16(i + 3)), ws_xpixel: 0, ws_ypixel: 0)
+            _ = ioctl(pty, UInt(TIOCSWINSZ), &ws); i += 5
+        }
+    }
+    return Array(b[i...])
+}
+func connectVsock(cid: UInt32, port: UInt32) -> Int32 {
+    let s = socket(40, Int32(SOCK_STREAM), 0)
+    var addr = [UInt8](repeating: 0, count: 16)
+    addr.withUnsafeMutableBytes { b in
+        b.storeBytes(of: UInt16(40), toByteOffset: 0, as: UInt16.self)
+        b.storeBytes(of: port, toByteOffset: 4, as: UInt32.self)
+        b.storeBytes(of: cid, toByteOffset: 8, as: UInt32.self)
+    }
+    let rc = addr.withUnsafeBytes { connect(s, $0.baseAddress!.assumingMemoryBound(to: sockaddr.self), 16) }
+    return rc == 0 ? s : -1
+}
+
+// Spike 0.11: `agent pty` serves a login shell per vsock 1026 connection; `agent sshfwd` exposes
+// /run/v2mac-ssh-agent.sock and carries each connection to the host's ssh-agent on vsock 2:1027.
+switch CommandLine.arguments.dropFirst().first {
+case "pty":
+    let s = listenVsock(1026)
+    signal(SIGCHLD, SIG_IGN)
+    while true {
+        let c = accept(s, nil, nil)
+        if c < 0 { continue }
+        if fork() == 0 {
+            var master: Int32 = 0
+            let pid = forkpty(&master, nil, nil, nil)
+            if pid == 0 {
+                setenv("SSH_AUTH_SOCK", "/run/v2mac-ssh-agent.sock", 1); setenv("TERM", "xterm-256color", 1); setenv("HOME", "/root", 1)
+                chdir("/root")
+                var argv: [UnsafeMutablePointer<CChar>?] = [strdup("bash"), strdup("-l"), nil]; execv("/bin/bash", &argv)
+                exit(127)
+            }
+            relay(c, master, frames: true, pty: master)
+            kill(pid, SIGHUP); exit(0)
+        }
+        close(c)
+    }
+case "sshfwd":
+    let path = "/run/v2mac-ssh-agent.sock"
+    unlink(path)
+    let s = socket(AF_UNIX, Int32(SOCK_STREAM), 0)
+    var addr = sockaddr_un(); addr.sun_family = sa_family_t(AF_UNIX)
+    withUnsafeMutableBytes(of: &addr.sun_path) { p in for (i, ch) in path.utf8.enumerated() { p[i] = ch } }
+    let ok = withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(s, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) } } == 0
+    guard ok, listen(s, 8) == 0 else { print("agent: ssh socket failed errno \(errno)"); exit(1) }
+    chmod(path, 0o666)
+    print("agent: ssh-agent forward on \(path)")
+    signal(SIGCHLD, SIG_IGN)
+    while true {
+        let c = accept(s, nil, nil)
+        if c < 0 { continue }
+        if fork() == 0 {
+            let v = connectVsock(cid: 2, port: 1027)
+            if v >= 0 { relay(c, v) }
+            exit(0)
+        }
+        close(c)
+    }
+default: break
+}
+
 // Spike 0.4: `agent echo` echoes every connection on vsock 1025 (one child per connection).
 if CommandLine.arguments.dropFirst().first == "echo" {
     let s = listenVsock(1025)

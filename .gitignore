@@ -7,3 +7,6 @@ spikes/*/.build/
 spikes/*/core.log
 .DS_Store
 spikes/*/build.log
+spikes/*/v2mac-pty
+spikes/*/icon
+spikes/*/stub
