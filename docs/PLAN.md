@@ -218,7 +218,7 @@ Plugins with a newer `api` are hidden with "Update V2Mac"; a breaking change mea
 | 0.6 | `xray api adi/adrules` in 26.10.21 | exists | restart sandbox core | **Go** (2026-10-22): `adi`, `ado`, `adrules -append` add a working path live; `rmrules`, `rmi`, `rmo` remove it. `spikes/06-xray-api` |
 | 0.7 | cage + wayvnc + prototype RFB, `hello-gui` + heavy page, 1× and 2× | smooth 2× < 1 core | 1× + scaling; then libkrun spike |
 | 0.8 | Input: Persian, IME, ⌘ mapping, trackpad | usable | extended keysym/text messages |
-| 0.9 | virtio-sound + PipeWire | plays | audio after v1 |
+| 0.9 | virtio-sound + PipeWire | plays | audio after v1 | **Go** (2026-10-22): VZ virtio-sound output → guest `virtio-snd` card; PipeWire + WirePlumber (no D-Bus) play through `pipewire-alsa`, PCM `RUNNING` at ~48k frames/s. `spikes/02-kernel-rootfs/spike09.sh` |
 | 0.10 | Generated ad-hoc stubs: launch, own Dock identity, LaunchServices | works | per-window Dock tiles | **Go** (2026-10-22): copies of one stub with their own `Info.plist`, iconset and ad-hoc signature, registered with `lsregister`: separate apps in `lsappinfo`, own tinted Dock tiles, `open -b` finds each. `spikes/10-stubs` |
 | 0.11 | pty bridge in Terminal.app + ssh-agent forward | works | own terminal window | **Go** (2026-10-22): Terminal.app → `v2mac-pty` (raw mode; keyboard and resize frames) → Unix socket → helper → vsock → agent `forkpty` bash. Resize 24×80 → 40×120 and Ctrl-C reach the guest; guest `ssh-add -l` and `ssh-keygen -Y sign` use the Mac's agent over vsock 2:1027. `spikes/02-kernel-rootfs/pty.swift` |
 | 0.12 | Ledger SSH/PGP Agent app: Ed25519 key, `ssh-keygen -Y sign`, CryptoKit verify | works | Keychain key + paper backup |

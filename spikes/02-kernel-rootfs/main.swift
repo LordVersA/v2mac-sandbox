@@ -23,6 +23,11 @@ config.serialPorts = [serial]
 config.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
 config.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()]
 config.socketDevices = [VZVirtioSocketDeviceConfiguration()]
+let sound = VZVirtioSoundDeviceConfiguration()
+let speaker = VZVirtioSoundDeviceOutputStreamConfiguration()
+speaker.sink = VZHostAudioOutputStreamSink()
+sound.streams = [speaker]
+config.audioDevices = [sound]
 do { try config.validate() } catch { print("[spike] invalid config: \(error)"); exit(1) }
 
 let start = Date()
@@ -34,6 +39,7 @@ out.fileHandleForReading.readabilityHandler = { h in
         DispatchQueue.main.async(execute: askAgent)
     }
     if s.contains("S05 done") { print("[spike] S05 done") }
+    if s.contains("S09 done") { print("[spike] S09 done") }
 }
 // Spike 0.11: Unix socket for v2mac-pty → vsock 1026 (guest pty), and vsock 1027 from the guest → host ssh-agent.
 var keep: [AnyObject] = []
@@ -57,9 +63,10 @@ func unixSocket(_ path: String, listen doListen: Bool) -> Int32 {
     return s
 }
 func servePty() {
-    let path = "/tmp/v2mac-pty-spike.sock"
+    let path = NSTemporaryDirectory() + "v2mac-pty-spike.sock" // per-user, 0700 dir
     unlink(path)
     let s = unixSocket(path, listen: true)
+    guard s >= 0 else { print("[spike] pty socket bind failed"); exit(1) }
     chmod(path, 0o600)
     print("[spike] pty socket \(path)")
     Thread.detachNewThread {

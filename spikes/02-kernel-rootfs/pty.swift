@@ -3,7 +3,7 @@ import Foundation
 setvbuf(stdout, nil, _IONBF, 0)
 let s = socket(AF_UNIX, SOCK_STREAM, 0)
 var addr = sockaddr_un(); addr.sun_family = sa_family_t(AF_UNIX)
-withUnsafeMutableBytes(of: &addr.sun_path) { p in for (i, ch) in "/tmp/v2mac-pty-spike.sock".utf8.enumerated() { p[i] = ch } }
+withUnsafeMutableBytes(of: &addr.sun_path) { p in for (i, ch) in (NSTemporaryDirectory() + "v2mac-pty-spike.sock").utf8.enumerated() { p[i] = ch } }
 guard withUnsafePointer(to: &addr, { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(s, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) } }) == 0 else { print("v2mac-pty: helper not running"); exit(1) }
 var saved = termios(); tcgetattr(0, &saved)
 var raw = saved; cfmakeraw(&raw); tcsetattr(0, TCSANOW, &raw)

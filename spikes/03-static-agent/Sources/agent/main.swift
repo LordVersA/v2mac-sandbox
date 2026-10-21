@@ -153,7 +153,7 @@ case "sshfwd":
     withUnsafeMutableBytes(of: &addr.sun_path) { p in for (i, ch) in path.utf8.enumerated() { p[i] = ch } }
     let ok = withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(s, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) } } == 0
     guard ok, listen(s, 8) == 0 else { print("agent: ssh socket failed errno \(errno)"); exit(1) }
-    chmod(path, 0o666)
+    chmod(path, 0o600) // shortcut: root only; the real agent bind-mounts it only into the approved pod, owned by its user
     print("agent: ssh-agent forward on \(path)")
     signal(SIGCHLD, SIG_IGN)
     while true {
