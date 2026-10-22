@@ -319,6 +319,11 @@ not shown with "Update V2Mac"; no icon from the store.
 1. Base images released from `sandbox`. 2. `plugin-template` with CI, samples built from it.
 3. Plugin API docs.
 *Done when:* a new plugin from the template passes store CI and installs on a clean Mac.
+**Done** (2026-10-22): the template plugin, `hello-pty` and `hello-gui` are released on GitHub, store CI passes
+on their submission (store PR #1), and `Scripts/test-sdk.py` installs all three from their releases into an
+isolated fresh helper (own data, blocked exit, test key) and checks pty launch, the GUI frame, Shared,
+Unicode input, clipboard both ways and resize. It found and fixed a resize disconnect in the RFB client
+(old-size rectangles after a resize are now dropped). Not yet repeated on a second, clean Mac.
 **In progress locally** (2026-10-22): `../plugin-template` now has the 0BSD template, Containerfile,
 launch script, icons, tag-release workflow, packaging checks/CI and API v1 docs; both samples have
 their own Containerfile and base reference. Packaging refuses unpinned bases and unsafe archive names,
@@ -343,6 +348,9 @@ folder-sideload limits, generated icons and GUI-only Shared mounts.
 2. Spec (app), wiki (en/fa/zh/ru), README ×4, String Catalogs ×3 (app and helper).
 3. First locked release: sandbox tag, then V2Mac release pinning its hash.
 *Done when:* every §9 scenario passes on a clean Mac; Sandbox (beta) ships.
+**In progress** (2026-10-22): helper and generated-app String Catalog (fa/zh-Hans/ru, compiled by
+`build-helper.sh`), wiki Sandbox page ×4 and README ×4 done locally. Open: host scenarios (need the main VPN,
+Wi-Fi, sleep and sudo for tcpdump), resource monitor, spec final at release, the release itself.
 
 ## Verification
 - `cd ../app/Packages/V2MacCore && swift test --filter Sandbox`; `swift test` in `sandbox`.
