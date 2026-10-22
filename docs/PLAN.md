@@ -351,6 +351,14 @@ folder-sideload limits, generated icons and GUI-only Shared mounts.
 **In progress** (2026-10-22): helper and generated-app String Catalog (fa/zh-Hans/ru, compiled by
 `build-helper.sh`), wiki Sandbox page ×4 and README ×4 done locally. Open: host scenarios (need the main VPN,
 Wi-Fi, sleep and sudo for tcpdump), resource monitor, spec final at release, the release itself.
+Host run (2026-10-22, dev build, `Scripts/host-leak.sh` on en0 for 15 min while probing): the VM and the
+helper sent no packet on the NIC. All 14 probes passed through a real exit (VLESS share link and a foxy
+JSON config, now accepted as exits when its proxy outbound stands alone), also after Wi-Fi off/on and
+sleep/wake. Found on the way: local `out/rootfs.erofs` was older than the exit-facts change, so its agent
+closed the link on `put exit-*.json`; rebuild the rootfs whenever `sandbox.sh` or the protocol changes.
+Open: main VPN disconnect/connect and TUN on/off (the installed app's kill switch blocks the dev build's
+servers; turn it off for the run), and a dev data disk from 15:33 that the new build refuses to attach
+(kept as `data.img.kept-2026-10-22`).
 
 ## Verification
 - `cd ../app/Packages/V2MacCore && swift test --filter Sandbox`; `swift test` in `sandbox`.
