@@ -1,0 +1,8 @@
+[Unit]
+Description=V2Mac VM agent
+After=v2mac-data.service
+[Service]
+ExecStart=/usr/local/bin/v2mac-agent
+Restart=always
+[Install]
+WantedBy=multi-user.target

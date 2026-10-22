@@ -11,3 +11,7 @@ spikes/*/v2mac-pty
 spikes/*/icon
 spikes/*/stub
 spikes/*/verify
+out/
+.build/
+.build-linux/
+.swiftpm/

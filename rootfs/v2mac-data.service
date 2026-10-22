@@ -1,0 +1,12 @@
+[Unit]
+Description=Format (first boot) and mount the V2Mac data disk on /data
+DefaultDependencies=no
+Requires=dev-vdb.device
+After=dev-vdb.device
+Before=local-fs.target
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'dumpe2fs -h /dev/vdb >/dev/null 2>&1 || mkfs.ext4 -q -L v2mac-data /dev/vdb; mkdir -p /data; mount /dev/vdb /data'
+[Install]
+WantedBy=local-fs.target

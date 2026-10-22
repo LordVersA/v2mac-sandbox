@@ -1,0 +1,43 @@
+# Push a tag vX.Y.Z: builds agent, kernel and rootfs on arm64 Linux, then the helper on macOS, and
+# publishes V2MacSandbox.zip with pin.json. The V2Mac release that follows pins that pin.json.
+name: Release
+on:
+  push: { tags: ["v*"] }
+permissions: { contents: write }
+jobs:
+  image:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: sandbox }
+      - id: app
+        run: echo "ref=$(cat sandbox/app.lock)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with: { repository: LordVersA/v2mac, ref: "${{ steps.app.outputs.ref }}", path: app }
+      - run: sandbox/Scripts/build-agent.sh && sandbox/Scripts/build-kernel.sh && sandbox/Scripts/build-rootfs.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image
+          path: |
+            sandbox/out/Image
+            sandbox/out/rootfs.erofs
+  helper:
+    needs: image
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: sandbox }
+      - id: app
+        run: echo "ref=$(cat sandbox/app.lock)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with: { repository: LordVersA/v2mac, ref: "${{ steps.app.outputs.ref }}", path: app }
+      - uses: actions/download-artifact@v4
+        with: { name: image, path: sandbox/out }
+      - working-directory: sandbox
+        env:
+          VERSION: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=${VERSION#v} Scripts/build-helper.sh
+          Scripts/package.sh "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/V2MacSandbox.zip"
+          gh release create "${{ github.ref_name }}" out/V2MacSandbox.zip out/pin.json --title "${{ github.ref_name }}" --notes "Pin: \`$(cat out/pin.json)\`"

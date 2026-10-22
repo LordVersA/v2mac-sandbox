@@ -1,0 +1,30 @@
+# Weekly: if kernel.org has a newer point release of our LTS series, build it and open a PR.
+# shortcut: builds only; GitHub's macOS runners can't run Virtualization.framework guests, so the
+# boot + leak probes (plan §9) run locally on the PR until a self-hosted Mac runner exists.
+name: Kernel bump
+on:
+  schedule: [{ cron: "0 6 * * 1" }]
+  workflow_dispatch:
+permissions: { contents: write, pull-requests: write }
+jobs:
+  bump:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          cur=$(cat kernel/VERSION)
+          new=$(curl -sf https://www.kernel.org/releases.json | jq -r --arg s "${cur%.*}." \
+            '[.releases[] | select(.version | startswith($s)) | .version][0] // empty')
+          echo "cur=$cur" >> "$GITHUB_OUTPUT"
+          [ -n "$new" ] && [ "$new" != "$cur" ] && echo "new=$new" >> "$GITHUB_OUTPUT" || echo "up to date ($cur)"
+      - if: steps.v.outputs.new
+        run: |
+          echo "${{ steps.v.outputs.new }}" > kernel/VERSION
+          Scripts/build-kernel.sh
+          b=kernel-${{ steps.v.outputs.new }}
+          git config user.name github-actions; git config user.email github-actions@users.noreply.github.com
+          git switch -c "$b" && git commit -am "Bump the guest kernel to ${{ steps.v.outputs.new }}" && git push -u origin "$b"
+          gh pr create --fill --body "Built in CI. Before merging, boot it and run the leak probes on a Mac."
+        env:
+          GH_TOKEN: ${{ github.token }}

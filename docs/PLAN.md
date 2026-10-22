@@ -236,6 +236,9 @@ Plugins with a newer `api` are hidden with "Update V2Mac"; a breaking change mea
 4. Helper: boot/stop VM, data disk, RAM cap, idle shutdown; agent handshake over vsock.
 5. `-debugSandbox install|boot|stop` hooks.
 *Done when:* dev V2Mac downloads a locally served sandbox, boots the VM, and Remove frees all disk.
+**Done locally** (2026-10-22): `-debugSandbox install` (143 MB zip, hashes checked) → `stop`: VM up and agent
+hello 0.8 s after launch, clean poweroff 0.3 s, data disk formatted ext4 on first boot → `remove` leaves no
+`sandbox/` folder. Boot + leak probes on kernel bumps stay manual: GitHub's macOS runners can't run VZ guests.
 
 ### M2 — Mini VMs, gateway, exits
 1. Gateway nft + in-VM xray config, sandbox core config (golden tests).
