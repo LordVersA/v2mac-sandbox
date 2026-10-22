@@ -17,7 +17,7 @@ mkdir -p /work/out/debs
 mmdebstrap --variant=minbase --mode=root --aptopt='Acquire::Retries "5"' "$@" \
   --setup-hook='mkdir -p "$1/var/cache/apt/archives"' --setup-hook='sync-in /work/out/debs /var/cache/apt/archives/' \
   --customize-hook='sync-out /var/cache/apt/archives /work/out/debs' \
-  --include=systemd,systemd-sysv,udev,podman,crun,nftables,uidmap,procps,iproute2,passt,e2fsprogs,socat,iputils-ping \
+  --include=systemd,systemd-sysv,udev,podman,crun,nftables,uidmap,procps,iproute2,passt,e2fsprogs,socat,iputils-ping,openssh-client \
   --customize-hook="install -m755 $R/overlay-init \"\$1/sbin/overlay-init\"" \
   --customize-hook="install -m755 /work/out/agent \"\$1/usr/local/bin/v2mac-agent\"" \
   --customize-hook="install -m755 /tmp/xray/xray \"\$1/usr/local/bin/xray\"" \

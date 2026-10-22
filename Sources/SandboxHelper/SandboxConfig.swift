@@ -11,6 +11,8 @@ struct MiniVM: Codable, Identifiable, Equatable, Sendable {
     /// The V2Mac server it exits through; nil blocks all its traffic.
     var exit: String?
     var disposable = false
+    /// Its installed apps (plan "One Mac app per app per mini VM").
+    var apps: [InstalledApp] = []
 
     var relayPort: Int { 11000 + index }
     var tproxyPort: Int { 12000 + index }
@@ -21,6 +23,18 @@ struct MiniVM: Codable, Identifiable, Equatable, Sendable {
         guard let index = (1...250).first(where: { !used.contains($0) }) else { return nil }
         let id = String(UUID().uuidString.prefix(8)).lowercased()
         return MiniVM(id: id, name: name, index: index, uuid: UUID().uuidString.lowercased(), exit: exit)
+    }
+}
+
+extension MiniVM {
+    // vms.json from before M3 has no `apps`.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try c.decode(String.self, forKey: .id), name: try c.decode(String.self, forKey: .name),
+                  index: try c.decode(Int.self, forKey: .index), uuid: try c.decode(String.self, forKey: .uuid),
+                  exit: try c.decodeIfPresent(String.self, forKey: .exit),
+                  disposable: try c.decodeIfPresent(Bool.self, forKey: .disposable) ?? false,
+                  apps: try c.decodeIfPresent([InstalledApp].self, forKey: .apps) ?? [])
     }
 }
 

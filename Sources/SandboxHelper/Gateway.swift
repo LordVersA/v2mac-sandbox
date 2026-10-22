@@ -178,11 +178,13 @@ import V2MacCore
 
     // MARK: Mini VM actions (plan M2.4)
 
-    func add(cloning source: MiniVM? = nil) {
-        let name = source.map { "\($0.name) copy" } ?? "Mini VM \(vms.count + 1)"
-        guard let mini = MiniVM.new(name: name, exit: source?.exit ?? activeServer, taken: vms) else { return }
+    func add(cloning source: MiniVM? = nil, name: String? = nil) {
+        let name = name ?? source.map { "\($0.name) copy" } ?? "Mini VM \(vms.count + 1)"
+        guard var mini = MiniVM.new(name: name, exit: source?.exit ?? activeServer, taken: vms) else { return }
+        mini.apps = source?.apps ?? []
         enqueue {
             if let source, !(await self.run(["clone", source.id, mini.id]).ok) { return }
+            for app in mini.apps { try? StubApps.make(app, in: mini, socket: self.ptySocket) }
             self.vms.append(mini)
             self.save()
             await self.apply()
@@ -192,12 +194,28 @@ import V2MacCore
     func delete(_ mini: MiniVM) {
         enqueue {
             guard await self.run(["vm-del", String(mini.index), mini.id]).ok else { return }
+            mini.apps.forEach { StubApps.remove($0, in: mini) }
             self.vms.removeAll { $0.id == mini.id }
             self.inGuest.remove(mini.id)
             self.exits[mini.id] = nil
             self.save()
             await self.apply()
         }
+    }
+
+    var ptySocket: URL { root.appendingPathComponent("pty.sock") }
+
+    /// Installs (or updates) an app in a mini VM with the approved permissions and makes its Mac app.
+    func install(_ manifest: PluginManifest, granted: [String], in mini: MiniVM) throws {
+        guard let current = vms.first(where: { $0.id == mini.id }) else { return }
+        let app = InstalledApp(manifest, granted: granted)
+        try StubApps.make(app, in: current, socket: ptySocket)
+        update(mini.id) { vm in vm.apps.removeAll { $0.id == app.id }; vm.apps.append(app) }
+    }
+
+    func uninstall(_ app: InstalledApp, from mini: MiniVM) {
+        StubApps.remove(app, in: mini)
+        update(mini.id) { $0.apps.removeAll { $0.id == app.id } }
     }
 
     func wipe(_ mini: MiniVM) {

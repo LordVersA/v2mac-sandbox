@@ -31,7 +31,7 @@ final class RelayListener: NSObject, VZVirtioSocketListenerDelegate, @unchecked 
     }
 
     /// shortcut: two blocking threads per connection; move to a kqueue loop if thread count bites.
-    static func pipe(_ a: Int32, _ b: Int32) {
+    static func pipe(_ a: Int32, _ b: Int32, done: @escaping @Sendable () -> Void = {}) {
         let group = DispatchGroup()
         for (from, to) in [(a, b), (b, a)] {
             group.enter()
@@ -49,6 +49,6 @@ final class RelayListener: NSObject, VZVirtioSocketListenerDelegate, @unchecked 
                 group.leave()
             }.start()
         }
-        group.notify(queue: .global()) { close(a); close(b) }
+        group.notify(queue: .global()) { close(a); close(b); done() }
     }
 }

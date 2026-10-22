@@ -263,6 +263,17 @@ as exits, the dialer (fragment/noise) on sandbox exits, per mini VM cgroup limit
 1. `v2mac-pty`, socket bridge, resize/signals. 2. Permission approval + enforcement.
 3. ssh-agent forwarding. 4. `hello-pty` (in `plugin-template`).
 *Done when:* `hello-pty — Work` opens in Terminal and SSH with the agent works through the VM's exit.
+**Done locally** (2026-10-22): sideloading `plugin-template/hello-pty` into mini VM "Work" makes
+`~/Applications/V2Mac Sandbox/Hello Terminal — Work.app` (stub copy, own bundle id, ad-hoc signed, registered).
+It opens `launch.command` in the user's Terminal → `v2mac-pty` → `<data>/sandbox/pty.sock` → helper → vsock 1026 →
+agent `forkpty` → `sandbox.sh app` → `podman run -it` in the mini VM's netns. Checked: exit IP through the VM's
+server, resize 24×80 → 40×120, Ctrl-C, `ssh-add -l` / `ssh-keygen -Y sign` with the Mac's agent, and `ssh -T
+git@github.com` through the exit offering the agent's key. The agent forward (guest socat → vsock 1027 → host
+`SSH_AUTH_SOCK`) is mounted only into containers of apps granted `ssh-agent`, and the host listens on 1027 only
+while such an app is open. Permissions are approved at install (Allow / Install Without These / Cancel);
+`clipboard` and `shared` are recorded but give nothing until M4. Open: plugins run on the VM rootfs as a stand-in
+for `base-cli` (layers come with M5/M6); no tinted icon (M4.2); `exit.json`/`TZ` for apps; the stub doesn't ask
+V2Mac to launch the helper when it isn't running (it says so); sideload isn't gated to dev builds yet (M5).
 
 ### M4 — gui display
 1. RFB parser + fuzz tests. 2. Stub, bundle generation, icon tint, title capsule.

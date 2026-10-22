@@ -14,12 +14,25 @@ public enum AgentMessage: Equatable, Sendable {
     case run([String])
     /// Agent → helper: the script's exit status and output.
     case result(status: Int, output: String)
+    /// Helper → agent, first frame on a pty connection (port `ptyPort`): `sandbox.sh app` with these
+    /// words on a new pty. `PtyInput` frames and raw terminal output follow.
+    case pty([String])
 
-    /// The only files `put` may write: the in-VM xray config and the gateway's nftables rules.
+    /// The only files `put` may write: the in-VM xray config, the gateway's nftables rules, and a
+    /// plugin's launch command (`plugin-<id>.argv`, NUL-separated) and environment (`plugin-<id>.env`).
     public static let files: Set<String> = ["xray.json", "gateway.nft"]
+
+    static func isFile(_ name: String) -> Bool {
+        if files.contains(name) { return true }
+        guard name.hasPrefix("plugin-"), let dot = name.lastIndex(of: "."), [".argv", ".env"].contains(name[dot...]) else { return false }
+        return isWord(String(name[name.index(name.startIndex, offsetBy: 7)..<dot])) && !name.dropFirst(7).hasPrefix(".")
+    }
 
     public static let version = 1
     public static let port: UInt32 = 1024
+    public static let ptyPort: UInt32 = 1026
+    /// The guest connects here for the Mac's ssh-agent, only while an approved pty app is open.
+    public static let sshAgentPort: UInt32 = 1027
     public static let maxFrame = 64 * 1024
 
     public var frame: [UInt8] {
@@ -29,6 +42,7 @@ public enum AgentMessage: Equatable, Sendable {
         case .ok: "ok"
         case .put(let name, let body): "put \(name) \(body)"
         case .run(let words): (["run"] + words).joined(separator: " ")
+        case .pty(let words): (["pty"] + words).joined(separator: " ")
         case .result(let status, let output): "result \(status) \(output)"
         }
         let body = Array(text.utf8)
@@ -45,12 +59,12 @@ public enum AgentMessage: Equatable, Sendable {
         case ("shutdown", 1): self = .shutdown
         case ("ok", 1): self = .ok
         case ("put", 3...):
-            guard Self.files.contains(String(rest[1])) else { return nil }
+            guard Self.isFile(String(rest[1])) else { return nil }
             self = .put(name: String(rest[1]), body: String(rest[2]))
-        case ("run", 2...):
+        case ("run", 2...), ("pty", 2...):
             let args = words.dropFirst().map(String.init)
             guard args.allSatisfy(Self.isWord) else { return nil }
-            self = .run(args)
+            self = words[0] == "run" ? .run(args) : .pty(args)
         case ("result", 2...):
             guard let status = Int(rest[1]) else { return nil }
             self = .result(status: status, output: rest.count > 2 ? String(rest[2]) : "")
@@ -59,7 +73,7 @@ public enum AgentMessage: Equatable, Sendable {
     }
 
     /// Script arguments: verbs, indexes and ids only, so nothing reaches a shell as code.
-    static func isWord(_ word: String) -> Bool {
+    public static func isWord(_ word: String) -> Bool {
         !word.isEmpty && word.utf8.count <= 64 && word.utf8.allSatisfy {
             ($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x41 && $0 <= 0x5a) || ($0 >= 0x61 && $0 <= 0x7a) || $0 == 0x2d || $0 == 0x2e
         }
@@ -85,6 +99,53 @@ public enum AgentMessage: Equatable, Sendable {
                 buffer.removeFirst(4 + length)
             }
             return messages
+        }
+    }
+}
+
+/// Terminal input on a pty connection, from `v2mac-pty` through the helper to the agent:
+/// `[0][u16 length][bytes]` is keyboard input, `[1][u16 rows][u16 cols]` a resize.
+public enum PtyInput: Equatable, Sendable {
+    case data([UInt8])
+    case resize(rows: Int, cols: Int)
+
+    public var frame: [UInt8] {
+        func be16(_ v: Int) -> [UInt8] { [UInt8(v >> 8 & 0xff), UInt8(v & 0xff)] }
+        return switch self {
+        case .data(let bytes): [0] + be16(bytes.count) + bytes
+        case .resize(let rows, let cols): [1] + be16(rows) + be16(cols)
+        }
+    }
+
+    /// Collects bytes into whole frames; throws on an unknown frame type.
+    public struct Reader: Sendable {
+        private var buffer: [UInt8] = []
+        public init() {}
+
+        public mutating func feed(_ bytes: some Collection<UInt8>) throws(AgentMessage.Invalid) -> [PtyInput] {
+            buffer += bytes
+            var out: [PtyInput] = []
+            var i = 0
+            func u16(_ at: Int) -> Int { Int(buffer[at]) << 8 | Int(buffer[at + 1]) }
+            while i + 3 <= buffer.count {
+                switch buffer[i] {
+                case 0:
+                    let length = u16(i + 1)
+                    guard i + 3 + length <= buffer.count else { break }
+                    out.append(.data(Array(buffer[(i + 3)..<(i + 3 + length)])))
+                    i += 3 + length
+                    continue
+                case 1:
+                    guard i + 5 <= buffer.count else { break }
+                    out.append(.resize(rows: u16(i + 1), cols: u16(i + 3)))
+                    i += 5
+                    continue
+                default: throw AgentMessage.Invalid()
+                }
+                break
+            }
+            buffer.removeFirst(i)
+            return out
         }
     }
 }

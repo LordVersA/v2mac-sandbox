@@ -14,6 +14,9 @@ let package = Package(
         .executableTarget(name: "Agent", dependencies: ["AgentProtocol"]),
         .target(name: "SandboxHelper", dependencies: ["AgentProtocol", "V2MacCore"]),
         .executableTarget(name: "V2MacSandbox", dependencies: ["SandboxHelper"]),
+        // Copied into each generated Mac app, and the Terminal end of the pty bridge (plan §5).
+        .executableTarget(name: "SandboxStub"),
+        .executableTarget(name: "V2MacPty", dependencies: ["AgentProtocol"]),
         .testTarget(name: "SandboxTests", dependencies: ["AgentProtocol", "SandboxHelper", "V2MacCore"]),
     ]
 )

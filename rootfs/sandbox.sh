@@ -26,6 +26,8 @@ boot) # once per VM boot: rootless podman on the data disk, container root, gate
   # overlayfs takes only the root layer, so /data, /run and the other mounts are not in it.
   mkdir -p $R/cu $R/cw $CTR && mount -t overlay overlay -o lowerdir=/,upperdir=$R/cu,workdir=$R/cw $CTR
   chmod 1777 $CTR/run $CTR/tmp; touch $CTR/run/.containerenv
+  # systemd-tmpfiles makes this include at boot; in a rootless container its owner is nobody and ssh refuses it.
+  rm -f $CTR/etc/ssh/ssh_config.d/20-systemd-ssh-proxy.conf
   ip netns add gw; gw ip link set lo up
   gw sysctl -qw net.ipv6.conf.all.disable_ipv6=1 net.ipv4.ip_forward=0
   # TPROXY'd packets (mark 1) are delivered locally.
@@ -74,6 +76,26 @@ wipe) # wipe <id>: empty the mini VM's home
 clone) # clone <from> <to>: copy a mini VM's data before vm-add of the copy
   install -d -o app -g app -m700 "/data/vms/$3"
   cp -a "/data/vms/$2/home" "/data/vms/$3/"
+  ;;
+app) # app <n> <id> <plugin> <disposable 0|1> <ssh-agent 0|1>: a plugin's launch command in mini VM n on
+  # this tty (the agent's pty), from $R/plugin-<plugin>.argv and .env (written by `put` just before)
+  num "$2"; n=$2; id=$3; p=$4
+  if [ "$5" = 1 ]; then home="--mount type=tmpfs,destination=/root"; else home="-v /data/vms/$id/home:/root"; fi
+  chown app "$R/plugin-$p.env"
+  ssh=""
+  if [ "$6" = 1 ]; then
+    # Only this app's container sees the socket; the Mac side listens only while such an app is open.
+    sock=$R/ssh-$$.sock
+    socat UNIX-LISTEN:$sock,fork,user=app,mode=600 VSOCK-CONNECT:2:1027 </dev/null >/dev/null 2>&1 &
+    trap "kill $! 2>/dev/null; rm -f $sock" EXIT HUP TERM
+    for _ in 1 2 3 4 5 6 7 8 9 10; do [ -S "$sock" ] && break; sleep 0.1; done
+    ssh="-v $sock:/run/ssh-agent.sock -e SSH_AUTH_SOCK=/run/ssh-agent.sock"
+  fi
+  # xargs appends the plugin's command after --rootfs; with -a the tty stays on stdin.
+  # shellcheck disable=SC2086
+  xargs -0 -a "$R/plugin-$p.argv" runuser -u app -- env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR podman run --rm -it \
+    --label "v2mac.vm=$id" --network "container:vm-$id" $HARDENED $home $ssh -e TERM=xterm-256color \
+    --env-file "$R/plugin-$p.env" -v "$R/resolv-$n:/etc/resolv.conf:ro" -w /root --rootfs $CTR
   ;;
 probe) # probe <n> <id> <other n> <other id>: leak probes from mini VM n (plan §9)
   num "$2"; num "$4"

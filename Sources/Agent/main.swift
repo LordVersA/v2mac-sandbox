@@ -89,15 +89,86 @@ func serve(_ c: Int32) {
                 writeAll(c, (put(name, body) ? AgentMessage.ok : .result(status: -1, output: "could not write \(name)")).frame)
             case .run(let words):
                 writeAll(c, runScript(words).frame)
-            case .hello, .ok, .result:
+            case .hello, .ok, .result, .pty:
                 return // only the agent sends these
             }
         }
     }
 }
 
+/// Reads exactly one frame, so the bytes after it stay in the socket for the pty relay.
+func readFrame(_ fd: Int32) -> AgentMessage? {
+    func readExactly(_ n: Int) -> [UInt8]? {
+        var out = [UInt8](repeating: 0, count: n), off = 0
+        while off < n {
+            let r = out[off...].withUnsafeMutableBytes { read(fd, $0.baseAddress, $0.count) }
+            if r <= 0 { return nil }
+            off += r
+        }
+        return out
+    }
+    guard let head = readExactly(4), case let length = head.reduce(0, { $0 << 8 | Int($1) }), length <= AgentMessage.maxFrame,
+          let body = readExactly(length) else { return nil }
+    var reader = AgentMessage.Reader()
+    return (try? reader.feed(head + body))?.first
+}
+
+/// One pty app (plan §5 `pty`): `sandbox.sh app <words>` on a new pty, keyboard and resizes from the
+/// helper into it, its output straight back. Either side closing ends the session.
+func servePty(_ c: Int32) -> Never {
+    guard case .pty(let words)? = readFrame(c) else { exit(1) }
+    var master: Int32 = -1
+    let pid = forkpty(&master, nil, nil, nil)
+    if pid == 0 {
+        var cargs = (["/bin/sh", "/usr/local/lib/v2mac/sandbox.sh", "app"] + words).map { strdup($0) } + [nil]
+        execve("/bin/sh", &cargs, [nil])
+        exit(127)
+    }
+    guard pid > 0 else { exit(1) }
+    var fds = [pollfd(fd: c, events: Int16(POLLIN), revents: 0), pollfd(fd: master, events: Int16(POLLIN), revents: 0)]
+    var buf = [UInt8](repeating: 0, count: 65536)
+    var input = PtyInput.Reader()
+    relay: while poll(&fds, 2, -1) > 0 {
+        if fds[0].revents != 0 {
+            let n = read(c, &buf, buf.count)
+            guard n > 0, let frames = try? input.feed(buf[0..<n]) else { break relay }
+            for frame in frames {
+                switch frame {
+                case .data(let bytes): writeAll(master, bytes)
+                case .resize(let rows, let cols):
+                    var size = winsize(ws_row: UInt16(rows), ws_col: UInt16(cols), ws_xpixel: 0, ws_ypixel: 0)
+                    _ = ioctl(master, UInt(TIOCSWINSZ), &size)
+                }
+            }
+        }
+        if fds[1].revents != 0 {
+            let n = read(master, &buf, buf.count)
+            guard n > 0, writeAll(c, Array(buf[0..<n])) else { break relay }
+        }
+    }
+    close(c)
+    kill(-pid, SIGHUP) // the app's whole session, so the script's trap stops the ssh-agent relay
+    close(master)
+    var status: Int32 = 0
+    while waitpid(pid, &status, 0) < 0 && errno == EINTR {}
+    exit(0)
+}
+
+// Pty sessions live in their own process, forked before anything else so it stays single-threaded;
+// each session forks again, so one stuck app never holds up the next.
+if fork() == 0 {
+    let p = listenVsock(AgentMessage.ptyPort)
+    signal(SIGCHLD, SIG_IGN)
+    while true {
+        let c = accept4(p, nil, nil, Int32(SOCK_CLOEXEC))
+        guard c >= 0 else { continue }
+        if fork() == 0 { signal(SIGCHLD, SIG_DFL); servePty(c) }
+        close(c)
+    }
+}
+
 let s = listenVsock(AgentMessage.port)
-print("agent: listening on vsock \(AgentMessage.port)")
+print("agent: listening on vsock \(AgentMessage.port) and \(AgentMessage.ptyPort)")
 while true {
     let c = accept4(s, nil, nil, Int32(SOCK_CLOEXEC))
     if c >= 0 { serve(c) }
