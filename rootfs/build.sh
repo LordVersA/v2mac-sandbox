@@ -17,7 +17,7 @@ mkdir -p /work/out/debs
 mmdebstrap --variant=minbase --mode=root --aptopt='Acquire::Retries "5"' "$@" \
   --setup-hook='mkdir -p "$1/var/cache/apt/archives"' --setup-hook='sync-in /work/out/debs /var/cache/apt/archives/' \
   --customize-hook='sync-out /var/cache/apt/archives /work/out/debs' \
-  --include=systemd,systemd-sysv,udev,podman,crun,nftables,uidmap,procps,iproute2,passt,e2fsprogs,socat,iputils-ping,openssh-client \
+  --include=systemd,systemd-sysv,udev,podman,crun,nftables,uidmap,procps,iproute2,passt,e2fsprogs,socat,iputils-ping,openssh-client,sway,wayvnc,wlr-randr,wtype,zenity,fonts-dejavu-core,fonts-vazirmatn,pipewire,pipewire-alsa,wireplumber,alsa-utils \
   --customize-hook="install -m755 $R/overlay-init \"\$1/sbin/overlay-init\"" \
   --customize-hook="install -m755 /work/out/agent \"\$1/usr/local/bin/v2mac-agent\"" \
   --customize-hook="install -m755 /tmp/xray/xray \"\$1/usr/local/bin/xray\"" \
@@ -28,6 +28,8 @@ mmdebstrap --variant=minbase --mode=root --aptopt='Acquire::Retries "5"' "$@" \
   --customize-hook='chroot "$1" systemctl mask getty@tty1.service serial-getty@hvc0.service' \
   --customize-hook='mkdir -p "$1/data"; chroot "$1" useradd -m app; echo containers:300000:1000000 >> "$1/etc/subuid"; echo containers:300000:1000000 >> "$1/etc/subgid"' \
   --customize-hook="python3 $R/seccomp-vsock.py \"\$1/usr/share/containers/seccomp.json\" \"\$1/etc/v2mac-seccomp.json\"" \
+  --customize-hook='echo "SUBSYSTEM==\"sound\", MODE=\"0666\"" > "$1/etc/udev/rules.d/60-v2mac-sound.rules"' \
+  --customize-hook="install -D -m644 $R/sway.conf \"\$1/etc/v2mac/sway.conf\"" \
   --customize-hook="install -m644 $R/containers.conf \"\$1/etc/containers/\"" \
   --customize-hook='rm -rf "$1/usr/share/doc" "$1/usr/share/man" "$1/var/cache/apt"/* "$1/var/lib/apt/lists"/*' \
   trixie /tmp/root http://deb.debian.org/debian

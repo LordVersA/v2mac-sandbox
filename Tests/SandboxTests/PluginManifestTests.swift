@@ -19,7 +19,7 @@ import Testing
     @Test func refusesWhatTheRuntimeCannotTrust() throws {
         let bad = [
             (#""api":1"#, #""api":2"#), (#""id":"hello-pty""#, #""id":"a;b""#), (#""id":"hello-pty""#, #""id":"../x""#),
-            (#""display":"pty""#, #""display":"gui""#), (#"["bash","-l"]"#, "[]"), (#""GREETING""#, #""A B""#),
+            (#""display":"pty""#, #""display":"web""#), (#"["bash","-l"]"#, "[]"), (#""GREETING""#, #""A B""#),
             (#""hi there""#, #""a\nb""#), (#"["ssh-agent"]"#, #"["camera"]"#),
         ]
         for (from, to) in bad {

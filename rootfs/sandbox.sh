@@ -11,6 +11,7 @@ SECCOMP=/etc/v2mac-seccomp.json
 export XDG_RUNTIME_DIR=$R/xdg
 asapp() { runuser -u app -- env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR "$@"; }
 gw() { ip netns exec gw "$@"; }
+int() { case "$1" in ''|*[!0-9]*) echo "bad number $1"; exit 2;; esac; }
 num() { case "$1" in ''|*[!0-9]*) echo "bad index $1"; exit 2;; esac; [ "$1" -ge 1 ] && [ "$1" -le 250 ] || { echo "bad index $1"; exit 2; }; }
 # Every container of a mini VM: rootless, no caps, our seccomp (no AF_VSOCK), read-only root.
 # `--rootfs $CTR` goes last, before the command: it makes the next word the root path.
@@ -25,9 +26,13 @@ boot) # once per VM boot: rootless podman on the data disk, container root, gate
   # A writable copy-on-write view of / as container root (crun can't pivot into / itself, M0 0.5).
   # overlayfs takes only the root layer, so /data, /run and the other mounts are not in it.
   mkdir -p $R/cu $R/cw $CTR && mount -t overlay overlay -o lowerdir=/,upperdir=$R/cu,workdir=$R/cw $CTR
-  chmod 1777 $CTR/run $CTR/tmp; touch $CTR/run/.containerenv
+  # Empty /tmp and /var/tmp: services' root-only PrivateTmp dirs there stop rootless crun.
+  mount -t tmpfs -o mode=1777 tmpfs $CTR/tmp; mount -t tmpfs -o mode=1777 tmpfs $CTR/var/tmp
+  chmod 1777 $CTR/run; touch $CTR/run/.containerenv
   # systemd-tmpfiles makes this include at boot; in a rootless container its owner is nobody and ssh refuses it.
   rm -f $CTR/etc/ssh/ssh_config.d/20-systemd-ssh-proxy.conf
+  # Each mini VM's Shared folder (helper: virtio-fs tag "shared", one directory per mini VM id).
+  mkdir -p /exchange; mount -t virtiofs shared /exchange || echo "no shared folders"
   ip netns add gw; gw ip link set lo up
   gw sysctl -qw net.ipv6.conf.all.disable_ipv6=1 net.ipv4.ip_forward=0
   # TPROXY'd packets (mark 1) are delivered locally.
@@ -78,10 +83,10 @@ clone) # clone <from> <to>: copy a mini VM's data before vm-add of the copy
   cp -a "/data/vms/$2/home" "/data/vms/$3/"
   ;;
 app) # app <n> <id> <plugin> <disposable 0|1> <ssh-agent 0|1>: a plugin's launch command in mini VM n on
-  # this tty (the agent's pty), from $R/plugin-<plugin>.argv and .env (written by `put` just before)
+  # this tty (the agent's pty), from $R/plugin-<id>-<plugin>.argv and .env (written by `put` just before)
   num "$2"; n=$2; id=$3; p=$4
   if [ "$5" = 1 ]; then home="--mount type=tmpfs,destination=/root"; else home="-v /data/vms/$id/home:/root"; fi
-  chown app "$R/plugin-$p.env"
+  chown app "$R/plugin-$id-$p.env"
   ssh=""
   if [ "$6" = 1 ]; then
     # Only this app's container sees the socket; the Mac side listens only while such an app is open.
@@ -93,9 +98,43 @@ app) # app <n> <id> <plugin> <disposable 0|1> <ssh-agent 0|1>: a plugin's launch
   fi
   # xargs appends the plugin's command after --rootfs; with -a the tty stays on stdin.
   # shellcheck disable=SC2086
-  xargs -0 -a "$R/plugin-$p.argv" runuser -u app -- env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR podman run --rm -it \
+  xargs -0 -a "$R/plugin-$id-$p.argv" runuser -u app -- env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR podman run --rm -it \
     --label "v2mac.vm=$id" --network "container:vm-$id" $HARDENED $home $ssh -e TERM=xterm-256color \
-    --env-file "$R/plugin-$p.env" -v "$R/resolv-$n:/etc/resolv.conf:ro" -w /root --rootfs $CTR
+    --env-file "$R/plugin-$id-$p.env" -v "$R/resolv-$n:/etc/resolv.conf:ro" -w /root --rootfs $CTR
+  ;;
+gui) # gui <token> <n> <id> <plugin> <disposable> <shared> <clipboard> <width> <height> <scale>: a window app
+  # under sway, served by wayvnc on $R/gui-<token>/vnc.sock (the agent's session connects there)
+  int "$2"; t=$2; shift; num "$2"; n=$2; id=$3; p=$4; int "$8"; int "$9"; int "${10}"
+  if [ "$5" = 1 ]; then home="--mount type=tmpfs,destination=/root"; else home="-v /data/vms/$id/home:/root"; fi
+  shared=""; [ "$6" = 1 ] && [ -d "/exchange/$id" ] && shared="-v /exchange/$id:/root/Shared"
+  sound=""; [ -d /dev/snd ] && sound="--device /dev/snd"
+  d=$R/gui-$t; install -d -o app -g app -m700 "$d"
+  chown app "$R/plugin-$id-$p.env"
+  # shellcheck disable=SC2086
+  xargs -0 -a "$R/plugin-$id-$p.argv" runuser -u app -- env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR podman run --rm --name "gui-$t" \
+    --label "v2mac.vm=$id" --network "container:vm-$id" $HARDENED $home $shared $sound -v "$d:/run/vnc" \
+    -e XDG_RUNTIME_DIR=/run/vnc -e WLR_BACKENDS=headless -e WLR_RENDERER=pixman -e WLR_LIBINPUT_NO_DEVICES=1 -e LANG=C.UTF-8 \
+    --env-file "$R/plugin-$id-$p.env" -v "$R/resolv-$n:/etc/resolv.conf:ro" -w /root --rootfs $CTR \
+    sh -c 'sway -c /etc/v2mac/sway.conf >/run/vnc/sway.log 2>&1 & sway=$!
+      for _ in $(seq 100); do for w in /run/vnc/wayland-*; do [ -S "$w" ] && break 2; done; sleep 0.1; done
+      export WAYLAND_DISPLAY=${w##*/}; echo "$WAYLAND_DISPLAY" > /run/vnc/display
+      wlr-randr --output HEADLESS-1 --custom-mode "$0" --scale "$1"; shift
+      if [ -d /dev/snd ]; then pipewire & sleep 0.3; wireplumber & fi
+      wayvnc --unix-socket /run/vnc/vnc.sock & "$@"; kill $sway' "${8}x${9}" "${10}" >"$d.log" 2>&1
+  ;;
+gui-type) # gui-type <token>: types stdin into the window app (text RFB keysyms can't carry)
+  int "$2"
+  asapp podman exec -i -e XDG_RUNTIME_DIR=/run/vnc -e LANG=C.UTF-8 "gui-$2" sh -c 'WAYLAND_DISPLAY=$(cat /run/vnc/display) exec wtype -' 
+  ;;
+gui-size) # gui-size <token> <width> <height> <scale>: the window was resized
+  int "$2"; int "$3"; int "$4"; int "$5"
+  asapp podman exec -e XDG_RUNTIME_DIR=/run/vnc "gui-$2" sh -c \
+    'WAYLAND_DISPLAY=$(cat /run/vnc/display) exec wlr-randr --output HEADLESS-1 --custom-mode "$0" --scale "$1"' "${3}x${4}" "$5"
+  ;;
+gui-stop) # gui-stop <token>
+  int "$2"
+  asapp podman rm -f -t0 "gui-$2" >/dev/null 2>&1 || true
+  rm -rf "$R/gui-$2" "$R/gui-$2.log"
   ;;
 probe) # probe <n> <id> <other n> <other id>: leak probes from mini VM n (plan §9)
   num "$2"; num "$4"

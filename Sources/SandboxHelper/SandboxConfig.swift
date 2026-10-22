@@ -13,10 +13,15 @@ struct MiniVM: Codable, Identifiable, Equatable, Sendable {
     var disposable = false
     /// Its installed apps (plan "One Mac app per app per mini VM").
     var apps: [InstalledApp] = []
+    /// Clipboard switches per direction (plan "Clipboard"); an app also needs the `clipboard` permission.
+    var pasteIn = true
+    var copyOut = true
 
     var relayPort: Int { 11000 + index }
     var tproxyPort: Int { 12000 + index }
     var tag: String { "vm-\(id)" }
+    /// Its colour: icons and the Sandbox window.
+    var hue: Double { (Double(index) * 0.618_034).truncatingRemainder(dividingBy: 1) }
 
     static func new(name: String, exit: String?, taken: [MiniVM]) -> MiniVM? {
         let used = Set(taken.map(\.index))
@@ -34,7 +39,9 @@ extension MiniVM {
                   index: try c.decode(Int.self, forKey: .index), uuid: try c.decode(String.self, forKey: .uuid),
                   exit: try c.decodeIfPresent(String.self, forKey: .exit),
                   disposable: try c.decodeIfPresent(Bool.self, forKey: .disposable) ?? false,
-                  apps: try c.decodeIfPresent([InstalledApp].self, forKey: .apps) ?? [])
+                  apps: try c.decodeIfPresent([InstalledApp].self, forKey: .apps) ?? [],
+                  pasteIn: try c.decodeIfPresent(Bool.self, forKey: .pasteIn) ?? true,
+                  copyOut: try c.decodeIfPresent(Bool.self, forKey: .copyOut) ?? true)
     }
 }
 

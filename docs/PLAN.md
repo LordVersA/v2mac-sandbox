@@ -279,6 +279,19 @@ V2Mac to launch the helper when it isn't running (it says so); sideload isn't ga
 1. RFB parser + fuzz tests. 2. Stub, bundle generation, icon tint, title capsule.
 3. Clipboard rules, Shared folder + quarantine, audio. 4. `hello-gui`.
 *Done when:* `hello-gui — Work.app` is its own Mac app; input, resize, clipboard and Shared work.
+**Done locally** (2026-10-22): `plugin-template/hello-gui` sideloaded into "Work" is `Hello Window — Work.app`, its own
+app (`io.github.lordversa.v2mac.sandbox.<vm>.hello-gui`, icon tinted in the VM's colour with a shield, title capsule
+"🛡 V2Mac Protected · Work · <exit>"). The stub is the RFB client (`Sources/RFB`, fuzz-tested: rectangles, CopyRect
+sources, desktop size and clipboard length checked); the helper only relays its socket to vsock 1028, where the agent
+checks the client side with `RFBClientFilter` and handles our text (wtype) and resize (wlr-randr) messages. Checked
+with a scripted client and by opening the app: exit IP, ASCII + Persian, Ctrl shortcuts, paste on ⌘V into the app,
+the app's copy back on the Mac, resize 1600×1000 → 1200×800, `~/V2Mac Sandbox/Work/Shared` both ways with
+`com.apple.quarantine` on what the VM writes. Changed: **sway** (headless, fullscreen-only config) instead of cage, since
+cage 0.2 lacks `wlr-data-control` and wayvnc's clipboard needs it. Clipboard needs the `clipboard` permission plus
+the mini VM's Paste-from-Mac / Copy-to-Mac switches (Mac→app enforced by the agent, app→Mac by the stub); text only.
+Audio: virtio-sound output + PipeWire in each window app's container (not checked by ear); no per-app mute yet.
+Open: rootfs is 486 MB with the GUI stack (base images split it in M6); capsule doesn't turn red live; IME preview and
+caret-placed candidates; ⌘ shortcuts that clash with app menus.
 
 ### M5 — Store and templates
 1. `store` repo: index format, Ledger signing script, expiry reminder workflow, submission CI, checklist.

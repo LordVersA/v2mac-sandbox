@@ -22,6 +22,15 @@ import Virtualization
 
     var socketDevice: VZVirtioSocketDevice? { vm?.socketDevices.first as? VZVirtioSocketDevice }
 
+    /// Each mini VM's Shared folder by id (plan "Files"), seen in the VM as `/exchange/<id>`. Set again
+    /// whenever mini VMs change; the running VM picks it up without a restart.
+    var shares: [String: URL] = [:] {
+        didSet { (vm?.directorySharingDevices.first as? VZVirtioFileSystemDevice)?.share = share }
+    }
+    private var share: VZMultipleDirectoryShare {
+        VZMultipleDirectoryShare(directories: shares.mapValues { VZSharedDirectory(url: $0, readOnly: false) })
+    }
+
     /// Sends one request to the agent and waits for its answer; nil when the VM is down or the agent
     /// says something unexpected. Requests are answered in order, one at a time.
     func call(_ message: AgentMessage) async -> AgentMessage? {
@@ -119,6 +128,15 @@ import Virtualization
         config.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
         config.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()]
         config.socketDevices = [VZVirtioSocketDeviceConfiguration()]
+        let fs = VZVirtioFileSystemDeviceConfiguration(tag: "shared")
+        fs.share = share
+        config.directorySharingDevices = [fs]
+        // Output only: the VM gets no microphone.
+        let speaker = VZVirtioSoundDeviceOutputStreamConfiguration()
+        speaker.sink = VZHostAudioOutputStreamSink()
+        let sound = VZVirtioSoundDeviceConfiguration()
+        sound.streams = [speaker]
+        config.audioDevices = [sound]
         try config.validate()
         return config
     }

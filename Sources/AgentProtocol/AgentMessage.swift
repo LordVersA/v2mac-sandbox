@@ -17,9 +17,12 @@ public enum AgentMessage: Equatable, Sendable {
     /// Helper → agent, first frame on a pty connection (port `ptyPort`): `sandbox.sh app` with these
     /// words on a new pty. `PtyInput` frames and raw terminal output follow.
     case pty([String])
+    /// Helper → agent, first frame on a window connection (port `guiPort`): `sandbox.sh gui` with these
+    /// words, then the client side of RFB (checked by `RFBClientFilter`) and wayvnc's answers.
+    case gui([String])
 
     /// The only files `put` may write: the in-VM xray config, the gateway's nftables rules, and a
-    /// plugin's launch command (`plugin-<id>.argv`, NUL-separated) and environment (`plugin-<id>.env`).
+    /// plugin's launch command (`plugin-<vm>-<app>.argv`, NUL-separated) and environment (`.env`), per mini VM.
     public static let files: Set<String> = ["xray.json", "gateway.nft"]
 
     static func isFile(_ name: String) -> Bool {
@@ -31,6 +34,7 @@ public enum AgentMessage: Equatable, Sendable {
     public static let version = 1
     public static let port: UInt32 = 1024
     public static let ptyPort: UInt32 = 1026
+    public static let guiPort: UInt32 = 1028
     /// The guest connects here for the Mac's ssh-agent, only while an approved pty app is open.
     public static let sshAgentPort: UInt32 = 1027
     public static let maxFrame = 64 * 1024
@@ -43,6 +47,7 @@ public enum AgentMessage: Equatable, Sendable {
         case .put(let name, let body): "put \(name) \(body)"
         case .run(let words): (["run"] + words).joined(separator: " ")
         case .pty(let words): (["pty"] + words).joined(separator: " ")
+        case .gui(let words): (["gui"] + words).joined(separator: " ")
         case .result(let status, let output): "result \(status) \(output)"
         }
         let body = Array(text.utf8)
@@ -61,10 +66,10 @@ public enum AgentMessage: Equatable, Sendable {
         case ("put", 3...):
             guard Self.isFile(String(rest[1])) else { return nil }
             self = .put(name: String(rest[1]), body: String(rest[2]))
-        case ("run", 2...), ("pty", 2...):
+        case ("run", 2...), ("pty", 2...), ("gui", 2...):
             let args = words.dropFirst().map(String.init)
             guard args.allSatisfy(Self.isWord) else { return nil }
-            self = words[0] == "run" ? .run(args) : .pty(args)
+            self = switch words[0] { case "run": .run(args); case "pty": .pty(args); default: .gui(args) }
         case ("result", 2...):
             guard let status = Int(rest[1]) else { return nil }
             self = .result(status: status, output: rest.count > 2 ? String(rest[2]) : "")
@@ -147,5 +152,74 @@ public enum PtyInput: Equatable, Sendable {
             buffer.removeFirst(i)
             return out
         }
+    }
+}
+
+/// The client half of an RFB 3.8 session as the agent passes it to wayvnc (plan §5 `gui`): the
+/// handshake bytes, then only the standard client messages plus two of ours, which the agent handles
+/// itself. Anything else, or clipboard text when the app may not have it, ends the session.
+public struct RFBClientFilter: Sendable {
+    public enum Out: Equatable, Sendable {
+        /// Bytes for wayvnc.
+        case forward([UInt8])
+        /// Our 250: `[250][u32 length][UTF-8]`, text the agent types with wtype (Persian, IMEs).
+        case text(String)
+        /// Our 252: `[252][u16 width][u16 height][u8 scale]`, a new output mode from a window resize.
+        case resize(width: Int, height: Int, scale: Int)
+    }
+
+    public static let maxText = 1 << 20
+    /// ProtocolVersion (12), security type (1), ClientInit (1).
+    static let handshake = 14
+    private var buffer: [UInt8] = []
+    private var handshakeLeft = RFBClientFilter.handshake
+    private let clipboard: Bool
+
+    public init(clipboard: Bool) { self.clipboard = clipboard }
+
+    public mutating func feed(_ bytes: some Collection<UInt8>) throws(AgentMessage.Invalid) -> [Out] {
+        buffer += bytes
+        var out: [Out] = []
+        if handshakeLeft > 0 {
+            let n = min(handshakeLeft, buffer.count)
+            out.append(.forward(Array(buffer[0..<n])))
+            buffer.removeFirst(n)
+            handshakeLeft -= n
+            if handshakeLeft > 0 { return out }
+        }
+        while let length = try messageLength() {
+            let message = Array(buffer[0..<length])
+            buffer.removeFirst(length)
+            switch message[0] {
+            case 250: out.append(.text(String(decoding: message[5...], as: UTF8.self)))
+            case 252: out.append(.resize(width: Int(message[1]) << 8 | Int(message[2]), height: Int(message[3]) << 8 | Int(message[4]), scale: Int(message[5])))
+            case 6 where !clipboard: continue // no clipboard permission: Mac text never reaches the app
+            default: out.append(.forward(message))
+            }
+        }
+        return out
+    }
+
+    /// The whole first message's size, nil while it is incomplete.
+    private func messageLength() throws(AgentMessage.Invalid) -> Int? {
+        guard let type = buffer.first else { return nil }
+        func u16(_ at: Int) -> Int { Int(buffer[at]) << 8 | Int(buffer[at + 1]) }
+        func u32(_ at: Int) -> Int { u16(at) << 16 | u16(at + 2) }
+        let length: Int
+        switch type {
+        case 0: length = 20 // SetPixelFormat
+        case 2: guard buffer.count >= 4 else { return nil }; length = 4 + 4 * u16(2) // SetEncodings
+        case 3: length = 10 // FramebufferUpdateRequest
+        case 4: length = 8 // KeyEvent
+        case 5: length = 6 // PointerEvent
+        case 6, 250: // ClientCutText, our text
+            let head = type == 6 ? 8 : 5
+            guard buffer.count >= head else { return nil }
+            guard u32(head - 4) <= Self.maxText else { throw AgentMessage.Invalid() }
+            length = head + u32(head - 4)
+        case 252: length = 6
+        default: throw AgentMessage.Invalid()
+        }
+        return buffer.count >= length ? length : nil
     }
 }

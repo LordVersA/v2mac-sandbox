@@ -61,18 +61,34 @@ import Virtualization
             _ = bytes.withUnsafeBytes { write(c, $0.baseAddress, $0.count) }
             close(c)
         }
-        guard words.count == 2, let mini = gateway.vms.first(where: { $0.id == words[0] }),
-              let app = mini.apps.first(where: { $0.id == words[1] }) else { return reject("this app is no longer in the sandbox.") }
+        // pty: "<vm> <app>"; gui: "gui <vm> <app> <width> <height> <scale>"
+        let gui = words.first == "gui"
+        let ids = gui ? Array(words.dropFirst()) : words
+        guard ids.count == (gui ? 5 : 2), let mini = gateway.vms.first(where: { $0.id == ids[0] }),
+              let app = mini.apps.first(where: { $0.id == ids[1] }), (app.display == "gui") == gui
+        else { return reject("this app is no longer in the sandbox.") }
+        var size: [String] = []
+        if gui {
+            guard let w = Int(ids[2]), let h = Int(ids[3]), let scale = Int(ids[4]),
+                  (64...8192).contains(w), (64...8192).contains(h), [1, 2].contains(scale) else { return reject("bad window size.") }
+            size = [String(w), String(h), String(scale)]
+        }
         retain()
         var released = false
         func release() { if !released { released = true; vm.release() } }
         for _ in 0..<900 where !gateway.ready { try? await Task.sleep(for: .milliseconds(100)) }
         guard gateway.ready, let device = vm.socketDevice,
-              await vm.call(.put(name: "plugin-\(app.id).argv", body: app.argvFile)) == .ok,
-              await vm.call(.put(name: "plugin-\(app.id).env", body: app.envFile)) == .ok
+              await vm.call(.put(name: "plugin-\(mini.id)-\(app.id).argv", body: app.argvFile)) == .ok,
+              await vm.call(.put(name: "plugin-\(mini.id)-\(app.id).env", body: app.envFile)) == .ok
         else { release(); return reject("the sandbox did not start.") }
-        let withSSH = app.granted.contains("ssh-agent")
-        let words = [String(mini.index), mini.id, app.id, mini.disposable ? "1" : "0", withSSH ? "1" : "0"]
+        let withSSH = !gui && app.allows("ssh-agent")
+        let flag = { $0 ? "1" : "0" }
+        let clipboard = app.allows("clipboard")
+        let open: AgentMessage = gui
+            ? .gui([String(mini.index), mini.id, app.id, flag(mini.disposable), flag(app.allows("shared")), flag(clipboard && mini.pasteIn)] + size)
+            : .pty([String(mini.index), mini.id, app.id, flag(mini.disposable), flag(withSSH)])
+        // The stub learns whether it may put the app's copies on the Mac's clipboard, and the title capsule.
+        let header = gui ? Array("ok \(flag(clipboard && mini.copyOut)) \(capsule(mini))\n".utf8) : []
         sessions += 1
         if withSSH { sshSessions += 1 }
         let end = { @MainActor [weak self] in
@@ -81,17 +97,28 @@ import Virtualization
             self.sessions -= 1
             if withSSH { self.sshSessions -= 1 }
         }
-        device.connect(toPort: AgentMessage.ptyPort) { result in
+        device.connect(toPort: gui ? AgentMessage.guiPort : AgentMessage.ptyPort) { result in
             guard case .success(let connection) = result else {
                 reject("the sandbox did not answer.")
                 return DispatchQueue.main.async { MainActor.assumeIsolated { end() } }
             }
             let guest = dup(connection.fileDescriptor)
             connection.close()
-            let frame = AgentMessage.pty(words).frame
-            _ = frame.withUnsafeBytes { write(guest, $0.baseAddress, $0.count) }
+            for bytes in [open.frame] { _ = bytes.withUnsafeBytes { write(guest, $0.baseAddress, $0.count) } }
+            if !header.isEmpty { _ = header.withUnsafeBytes { write(c, $0.baseAddress, $0.count) } }
             RelayListener.pipe(c, guest) { DispatchQueue.main.async { MainActor.assumeIsolated { end() } } }
         }
+    }
+
+    /// "🛡 V2Mac Protected · Work · 🇩🇪 Frankfurt" (plan: title capsule), as it is when the window opens.
+    private func capsule(_ mini: MiniVM) -> String {
+        let place: String = switch gateway.exits[mini.id] ?? .unknown {
+        case .ok(let place): place
+        case .down: "Not connected"
+        case .none: "Blocked"
+        case .unknown: "Checking exit"
+        }
+        return "🛡 V2Mac Protected · \(mini.name) · \(place)"
     }
 
     private func sshChanged(_ old: Int) {

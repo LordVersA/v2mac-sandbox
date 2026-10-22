@@ -122,6 +122,7 @@ import V2MacCore
     /// Brings host and guest in line with `vms`: sandbox core (restarted), relays, gateway rules,
     /// xray-in-vm and any pod not yet made in this VM run.
     private func apply() async {
+        updateShares()
         guard let corePath, let device = vm.socketDevice else { return log("no core path or vsock device yet") }
         if !booted {
             guard await run(["boot"]).ok else { return }
@@ -204,6 +205,29 @@ import V2MacCore
     }
 
     var ptySocket: URL { root.appendingPathComponent("pty.sock") }
+
+    /// `~/V2Mac Sandbox/<VM>/Shared` (plan "Files"); kept when a mini VM is deleted, it holds the user's files.
+    static func sharedFolder(_ mini: MiniVM) -> URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("V2Mac Sandbox/\(mini.name.replacingOccurrences(of: "/", with: "-"))/Shared", isDirectory: true)
+    }
+
+    private func updateShares() {
+        var shares: [String: URL] = [:]
+        for mini in vms {
+            let folder = Self.sharedFolder(mini)
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            shares[mini.id] = folder
+        }
+        vm.shares = shares
+    }
+
+    func setClipboard(_ mini: MiniVM, pasteIn: Bool? = nil, copyOut: Bool? = nil) {
+        update(mini.id) { vm in
+            if let pasteIn { vm.pasteIn = pasteIn }
+            if let copyOut { vm.copyOut = copyOut }
+        }
+    }
 
     /// Installs (or updates) an app in a mini VM with the approved permissions and makes its Mac app.
     func install(_ manifest: PluginManifest, granted: [String], in mini: MiniVM) throws {

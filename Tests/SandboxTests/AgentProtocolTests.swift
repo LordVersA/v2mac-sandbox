@@ -39,10 +39,36 @@ import Testing
         #expect(throws: AgentMessage.Invalid.self) { try reader.feed([2, 0, 0]) }
     }
 
+    @Test func rfbFilterPassesStandardMessagesAndTakesOurs() throws {
+        let handshake = Array("RFB 003.008\n".utf8) + [1, 1]
+        let key: [UInt8] = [4, 1, 0, 0, 0, 0, 0, 0x61]
+        let cut: [UInt8] = [6, 0, 0, 0, 0, 0, 0, 2] + Array("hi".utf8)
+        let text: [UInt8] = [250, 0, 0, 0, 6] + Array("سلام".utf8.prefix(6))
+        let resize: [UInt8] = [252, 5, 0, 3, 32, 2]
+        let encodings: [UInt8] = [2, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0]
+        let all = handshake + encodings + key + cut + text + resize
+        var allowed = RFBClientFilter(clipboard: true)
+        var got: [RFBClientFilter.Out] = []
+        for b in all { got += try allowed.feed([b]) }
+        let forwarded = got.compactMap { if case .forward(let b) = $0 { b } else { nil } }.flatMap { $0 }
+        #expect(forwarded == handshake + encodings + key + cut)
+        #expect(got.contains(.text("سلا")))
+        #expect(got.contains(.resize(width: 1280, height: 800, scale: 2)))
+        var denied = RFBClientFilter(clipboard: false)
+        let out = try denied.feed(all).compactMap { if case .forward(let b) = $0 { b } else { nil } }.flatMap { $0 }
+        #expect(out == handshake + encodings + key)
+        var bad = RFBClientFilter(clipboard: true)
+        #expect(throws: AgentMessage.Invalid.self) { try bad.feed(handshake + [7]) }
+        var huge = RFBClientFilter(clipboard: true)
+        #expect(throws: AgentMessage.Invalid.self) { try huge.feed(handshake + [6, 0, 0, 0, 0x7f, 0, 0, 0]) }
+    }
+
     @Test func survivesRandomBytes() {
         for _ in 0..<1000 {
             var reader = AgentMessage.Reader()
             _ = try? reader.feed((0..<Int.random(in: 0..<40)).map { _ in UInt8.random(in: 0...255) })
+            var filter = RFBClientFilter(clipboard: true)
+            _ = try? filter.feed((0..<Int.random(in: 0..<60)).map { _ in UInt8.random(in: 0...255) })
         }
     }
 }

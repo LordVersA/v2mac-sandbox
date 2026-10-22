@@ -9,6 +9,7 @@ import V2MacCore
     private let gateway: Gateway
     private let model: WindowModel
     private var pty: PtyServer!
+    private let quarantine = QuarantineWatcher(folder: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("V2Mac Sandbox"))
     private var ramCapMB = SandboxFiles.defaultRAMCapMB(physicalMemory: ProcessInfo.processInfo.physicalMemory)
     private var window: NSWindow?
 
@@ -47,6 +48,7 @@ import V2MacCore
         link.start(onMessage: { [weak self] in self?.handle($0) }, onClose: { [weak self] in self?.quit() })
         link.send(.hello(version: SandboxLink.version))
         pty.start()
+        quarantine.start()
         sideloadHook()
     }
 
@@ -178,12 +180,16 @@ struct SandboxWindow: View {
             .labelsHidden()
             .frame(width: 180)
             ForEach(vm.apps) { app in
-                Button(app.name, systemImage: "terminal") { NSWorkspace.shared.open(StubApps.url(app, in: vm)) }
+                Button(app.name, systemImage: app.display == "gui" ? "macwindow" : "terminal") { NSWorkspace.shared.open(StubApps.url(app, in: vm)) }
                     .help(app.unverified ? "Unverified: sideloaded, not from the V2Mac store" : app.name)
                     .contextMenu { Button("Remove \(app.name)", role: .destructive) { gateway.uninstall(app, from: vm) } }
             }
             Menu {
                 Button("Add App from Folder…") { addApp(to: vm) }
+                Toggle("Paste from Mac", isOn: Binding(get: { vm.pasteIn }, set: { gateway.setClipboard(vm, pasteIn: $0) }))
+                Toggle("Copy to Mac", isOn: Binding(get: { vm.copyOut }, set: { gateway.setClipboard(vm, copyOut: $0) }))
+                Button("Show Shared Folder") { NSWorkspace.shared.open(Gateway.sharedFolder(vm)) }
+                Divider()
                 Toggle("Disposable", isOn: Binding(get: { vm.disposable }, set: { gateway.setDisposable(vm, $0) }))
                 Button("Clone") { gateway.add(cloning: vm) }
                 Button("Wipe Data…") { confirm = ("Wipe all data of \(vm.name)?", { gateway.wipe(vm) }) }

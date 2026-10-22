@@ -89,7 +89,7 @@ func serve(_ c: Int32) {
                 writeAll(c, (put(name, body) ? AgentMessage.ok : .result(status: -1, output: "could not write \(name)")).frame)
             case .run(let words):
                 writeAll(c, runScript(words).frame)
-            case .hello, .ok, .result, .pty:
+            case .hello, .ok, .result, .pty, .gui:
                 return // only the agent sends these
             }
         }
@@ -154,21 +154,99 @@ func servePty(_ c: Int32) -> Never {
     exit(0)
 }
 
+/// Starts `sandbox.sh <words>`; with `input`, writes it to the script's stdin. Waits unless `wait` is false.
+@discardableResult func script(_ words: [String], input: [UInt8]? = nil, wait: Bool = true) -> pid_t {
+    var fds: [Int32] = [-1, -1]
+    var actions = posix_spawn_file_actions_t()
+    posix_spawn_file_actions_init(&actions)
+    defer { posix_spawn_file_actions_destroy(&actions) }
+    if input != nil, pipe2(&fds, O_CLOEXEC) == 0 { posix_spawn_file_actions_adddup2(&actions, fds[0], 0) }
+    else { posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0) }
+    posix_spawn_file_actions_addopen(&actions, 1, "/dev/null", O_WRONLY, 0)
+    posix_spawn_file_actions_adddup2(&actions, 1, 2)
+    var pid: pid_t = 0
+    var cargs = (["/bin/sh", "/usr/local/lib/v2mac/sandbox.sh"] + words).map { strdup($0) } + [nil]
+    let spawned = posix_spawn(&pid, "/bin/sh", &actions, nil, &cargs, [nil])
+    if fds[0] >= 0 { close(fds[0]); if let input { writeAll(fds[1], input) }; close(fds[1]) }
+    guard spawned == 0 else { return -1 }
+    if wait { var status: Int32 = 0; while waitpid(pid, &status, 0) < 0 && errno == EINTR {} }
+    return pid
+}
+
+func connectUnix(_ path: String) -> Int32 {
+    let s = socket(AF_UNIX, Int32(SOCK_STREAM) | Int32(SOCK_CLOEXEC), 0)
+    var addr = sockaddr_un()
+    addr.sun_family = sa_family_t(AF_UNIX)
+    withUnsafeMutableBytes(of: &addr.sun_path) { p in for (i, ch) in path.utf8.enumerated() { p[i] = ch } }
+    let ok = withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(s, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) } } == 0
+    if !ok { close(s); return -1 }
+    return s
+}
+
+/// One window app (plan §5 `gui`): `sandbox.sh gui` runs it under cage with wayvnc on a Unix socket;
+/// the helper's RFB stream goes there through `RFBClientFilter`, our text and resize messages are
+/// typed or applied here, and wayvnc's answers go back as they are.
+func serveGui(_ c: Int32) -> Never {
+    // words: <n> <id> <plugin> <disposable> <shared> <clipboard> <width> <height> <scale>
+    guard case .gui(let words)? = readFrame(c), words.count == 9 else { exit(1) }
+    let token = String(getpid())
+    let app = script(["gui", token] + words, wait: false)
+    var vnc: Int32 = -1
+    for _ in 0..<300 where vnc < 0 {
+        usleep(100_000)
+        vnc = connectUnix("/run/v2mac/gui-\(token)/vnc.sock")
+        var status: Int32 = 0
+        if vnc < 0, app > 0, waitpid(app, &status, WNOHANG) == app { break } // the app ended before showing
+    }
+    if vnc >= 0 {
+        var filter = RFBClientFilter(clipboard: words[5] == "1")
+        var fds = [pollfd(fd: c, events: Int16(POLLIN), revents: 0), pollfd(fd: vnc, events: Int16(POLLIN), revents: 0)]
+        var buf = [UInt8](repeating: 0, count: 65536)
+        relay: while poll(&fds, 2, -1) > 0 {
+            if fds[0].revents != 0 {
+                let n = read(c, &buf, buf.count)
+                guard n > 0, let outs = try? filter.feed(buf[0..<n]) else { break relay }
+                for out in outs {
+                    switch out {
+                    case .forward(let bytes): guard writeAll(vnc, bytes) else { break relay }
+                    case .text(let text): script(["gui-type", token], input: Array(text.utf8))
+                    case .resize(let width, let height, let scale):
+                        script(["gui-size", token, String(width), String(height), String(scale)])
+                    }
+                }
+            }
+            if fds[1].revents != 0 {
+                let n = read(vnc, &buf, buf.count)
+                guard n > 0, writeAll(c, Array(buf[0..<n])) else { break relay }
+            }
+        }
+        close(vnc)
+    }
+    close(c)
+    script(["gui-stop", token])
+    if app > 0 { kill(app, SIGTERM); var status: Int32 = 0; waitpid(app, &status, 0) }
+    exit(0)
+}
+
 // Pty sessions live in their own process, forked before anything else so it stays single-threaded;
 // each session forks again, so one stuck app never holds up the next.
 if fork() == 0 {
-    let p = listenVsock(AgentMessage.ptyPort)
+    var listeners = [pollfd(fd: listenVsock(AgentMessage.ptyPort), events: Int16(POLLIN), revents: 0),
+                     pollfd(fd: listenVsock(AgentMessage.guiPort), events: Int16(POLLIN), revents: 0)]
     signal(SIGCHLD, SIG_IGN)
-    while true {
-        let c = accept4(p, nil, nil, Int32(SOCK_CLOEXEC))
-        guard c >= 0 else { continue }
-        if fork() == 0 { signal(SIGCHLD, SIG_DFL); servePty(c) }
-        close(c)
+    while poll(&listeners, 2, -1) >= 0 {
+        for (i, l) in listeners.enumerated() where l.revents != 0 {
+            let c = accept4(l.fd, nil, nil, Int32(SOCK_CLOEXEC))
+            guard c >= 0 else { continue }
+            if fork() == 0 { signal(SIGCHLD, SIG_DFL); if i == 0 { servePty(c) } else { serveGui(c) } }
+            close(c)
+        }
     }
+    exit(1)
 }
 
 let s = listenVsock(AgentMessage.port)
-print("agent: listening on vsock \(AgentMessage.port) and \(AgentMessage.ptyPort)")
+print("agent: listening on vsock \(AgentMessage.port), \(AgentMessage.ptyPort) and \(AgentMessage.guiPort)")
 while true {
     let c = accept4(s, nil, nil, Int32(SOCK_CLOEXEC))
     if c >= 0 { serve(c) }
