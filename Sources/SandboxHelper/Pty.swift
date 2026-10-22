@@ -84,7 +84,7 @@ import Virtualization
         for _ in 0..<900 where !gateway.ready { try? await Task.sleep(for: .milliseconds(100)) }
         guard gateway.ready, let device = vm.socketDevice,
               await vm.call(.put(name: "plugin-\(mini.id)-\(app.id).argv", body: app.argvFile)) == .ok,
-              await vm.call(.put(name: "plugin-\(mini.id)-\(app.id).env", body: app.envFile)) == .ok
+              await vm.call(.put(name: "plugin-\(mini.id)-\(app.id).env", body: app.envFile + (gateway.facts[mini.id]?.timezone.map { "TZ=\($0)\n" } ?? ""))) == .ok
         else { release(); return reject("the sandbox did not start.") }
         let withSSH = !gui && app.allows("ssh-agent")
         let flag = { $0 ? "1" : "0" }

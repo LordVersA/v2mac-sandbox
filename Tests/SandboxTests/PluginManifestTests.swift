@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import SandboxHelper
+import V2MacCore
 
 @Suite struct PluginManifestTests {
     static let good = #"{"api":1,"id":"hello-pty","name":"Hello","version":"1.0","display":"pty","launch":{"cmd":["bash","-l"],"env":{"GREETING":"hi there"}},"permissions":["ssh-agent"]}"#
@@ -29,5 +30,18 @@ import Testing
 
     @Test func quotesForTheLaunchCommand() {
         #expect(StubApps.quote("it's a/b") == #"'it'\''s a/b'"#)
+    }
+}
+
+@Suite struct ExitFactsTests {
+    let tab = "# comment\nDE\t+5230+01322\tEurope/Berlin\tmost of Germany\nDE\t+4742+00841\tEurope/Busingen\tBusingen\nIR\t+3540+05126\tAsia/Tehran\n"
+
+    @Test func picksTheCitysZoneElseTheCountrys() {
+        let busingen = ExitFacts(ExitInfo(ip: "1.2.3.4", countryCode: "DE", city: "Busingen"), zoneTab: tab)
+        #expect(busingen.timezone == "Europe/Busingen")
+        let frankfurt = ExitFacts(ExitInfo(ip: "1.2.3.4", countryCode: "DE", city: "Frankfurt am Main"), zoneTab: tab)
+        #expect(frankfurt.timezone == "Europe/Berlin")
+        #expect(frankfurt.latitude == 52.5)
+        #expect(ExitFacts(ExitInfo(ip: "5.6.7.8"), zoneTab: tab).timezone == nil)
     }
 }

@@ -14,6 +14,8 @@ gw() { ip netns exec gw "$@"; }
 int() { case "$1" in ''|*[!0-9]*) echo "bad number $1"; exit 2;; esac; }
 # A store plugin's loaded image (hex id), or "-" for the VM's own root (sideloads, M0 stand-in for base).
 rootof() { case "$1" in -) echo "--rootfs $CTR";; *[!0-9a-f]*|'') echo "bad image $1" >&2; exit 2;; *) echo "$1";; esac; }
+# The mini VM's exit facts folder, read-only at /run/v2mac (a folder, so an atomic replace shows through).
+facts() { install -d -m755 "$R/facts-$1"; echo "-v $R/facts-$1:/run/v2mac:ro"; }
 num() { case "$1" in ''|*[!0-9]*) echo "bad index $1"; exit 2;; esac; [ "$1" -ge 1 ] && [ "$1" -le 250 ] || { echo "bad index $1"; exit 2; }; }
 # Every container of a mini VM: rootless, no caps, our seccomp (no AF_VSOCK), read-only root.
 # `--rootfs $CTR` goes last, before the command: it makes the next word the root path.
@@ -102,7 +104,7 @@ app) # app <n> <id> <plugin> <disposable 0|1> <ssh-agent 0|1> <image id|->: a pl
   # shellcheck disable=SC2086
   xargs -0 -a "$R/plugin-$id-$p.argv" runuser -u app -- env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR podman run --rm -it \
     --label "v2mac.vm=$id" --network "container:vm-$id" $HARDENED $home $ssh -e TERM=xterm-256color \
-    --env-file "$R/plugin-$id-$p.env" -v "$R/resolv-$n:/etc/resolv.conf:ro" -w /root $root
+    --env-file "$R/plugin-$id-$p.env" -v "$R/resolv-$n:/etc/resolv.conf:ro" $(facts "$id") -w /root $root
   ;;
 gui) # gui <token> <n> <id> <plugin> <disposable> <shared> <clipboard> <width> <height> <scale> <image id|->: a window app
   # under sway, served by wayvnc on $R/gui-<token>/vnc.sock (the agent's session connects there)
@@ -116,7 +118,7 @@ gui) # gui <token> <n> <id> <plugin> <disposable> <shared> <clipboard> <width> <
   xargs -0 -a "$R/plugin-$id-$p.argv" runuser -u app -- env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR podman run --rm --name "gui-$t" \
     --label "v2mac.vm=$id" --network "container:vm-$id" $HARDENED $home $shared $sound -v "$d:/run/vnc" \
     -e XDG_RUNTIME_DIR=/run/vnc -e WLR_BACKENDS=headless -e WLR_RENDERER=pixman -e WLR_LIBINPUT_NO_DEVICES=1 -e LANG=C.UTF-8 \
-    --env-file "$R/plugin-$id-$p.env" -v "$R/resolv-$n:/etc/resolv.conf:ro" -w /root $root \
+    --env-file "$R/plugin-$id-$p.env" -v "$R/resolv-$n:/etc/resolv.conf:ro" $(facts "$id") -w /root $root \
     sh -c 'sway -c /etc/v2mac/sway.conf >/run/vnc/sway.log 2>&1 & sway=$!
       for _ in $(seq 100); do for w in /run/vnc/wayland-*; do [ -S "$w" ] && break 2; done; sleep 0.1; done
       export WAYLAND_DISPLAY=${w##*/}; echo "$WAYLAND_DISPLAY" > /run/vnc/display
@@ -137,6 +139,9 @@ gui-stop) # gui-stop <token>
   int "$2"
   asapp podman rm -f -t0 "gui-$2" >/dev/null 2>&1 || true
   rm -rf "$R/gui-$2" "$R/gui-$2.log"
+  ;;
+exit-facts) # exit-facts <id>: $R/exit-<id>.json becomes /run/v2mac/exit.json in that mini VM's apps (atomic rename)
+  d=$R/facts-$2; install -d -m755 "$d"; chmod 644 "$R/exit-$2.json"; mv "$R/exit-$2.json" "$d/exit.json"
   ;;
 load) # load <sha256>: a store layer V2Mac downloaded (an OCI or docker image archive); prints the image id
   case "$2" in *[!0-9a-f]*|'') echo "bad layer"; exit 2;; esac

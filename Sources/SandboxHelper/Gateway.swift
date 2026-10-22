@@ -15,6 +15,8 @@ import V2MacCore
     private(set) var servers: [SandboxLink.Server] = []
     private(set) var activeServer: String?
     private(set) var exits: [String: ExitStatus] = [:]
+    /// The last exit facts each mini VM's apps were given (plan §6).
+    @ObservationIgnored private(set) var facts: [String: ExitFacts] = [:]
     /// The mini VMs are set up in the running VM.
     private(set) var ready = false
 
@@ -80,6 +82,7 @@ import V2MacCore
             booted = false
             inGuest = []
             relays = [:]
+            facts = [:]
             watch?.cancel()
             Task { await core?.stop() }
             exits = [:]
@@ -334,6 +337,9 @@ import V2MacCore
         guard mini.exit != nil, let route = checkRoute(mini) else { exits[mini.id] = mini.exit == nil ? ExitStatus.none : .unknown; return }
         let before = exits[mini.id]
         if let info = await ExitLookup.lookup(route: route) {
+            let facts = ExitFacts(info, zoneTab: ExitFacts.zoneTab)
+            if facts != self.facts[mini.id], await vm.call(.put(name: "exit-\(mini.id).json", body: facts.json)) == .ok,
+               await run(["exit-facts", mini.id]).ok { self.facts[mini.id] = facts }
             exits[mini.id] = .ok([info.countryCode.map(Self.flag), info.place() ?? info.ip].compactMap { $0 }.joined(separator: " "))
         } else {
             exits[mini.id] = .down

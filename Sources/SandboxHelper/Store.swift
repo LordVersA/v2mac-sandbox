@@ -92,7 +92,13 @@ enum Store {
             base = Store.indexURL.deletingLastPathComponent()
             key = Store.publicKey
         }
+        // The last verified index, checked again: revocations hold from the first launch, offline too.
+        if let data = try? Data(contentsOf: saved), let sig = try? String(contentsOf: saved.appendingPathExtension("sig"), encoding: .utf8) {
+            index = try? Store.verify(index: data, signature: sig, key: key, lastVersion: lastVersion)
+        }
     }
+
+    private var saved: URL { state.deletingLastPathComponent().appendingPathComponent("store-index.json") }
 
     private var lastVersion: Int? {
         get { (try? Data(contentsOf: state)).flatMap { try? JSONDecoder().decode([String: Int].self, from: $0) }?["version"] }
@@ -111,6 +117,8 @@ enum Store {
             let checked = try Store.verify(index: data, signature: sig, key: key, lastVersion: lastVersion)
             index = checked
             lastVersion = max(checked.version, lastVersion ?? 0)
+            try? data.write(to: saved)
+            try? sig.write(to: saved.appendingPathExtension("sig"), atomically: true, encoding: .utf8)
             problem = isExpired ? "The store index has expired; installs and updates wait for a new one." : nil
         } catch {
             problem = error.localizedDescription

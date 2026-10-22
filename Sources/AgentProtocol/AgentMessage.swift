@@ -27,6 +27,8 @@ public enum AgentMessage: Equatable, Sendable {
 
     static func isFile(_ name: String) -> Bool {
         if files.contains(name) { return true }
+        // exit-<mini VM id>.json: the exit facts sandbox.sh moves into that mini VM's /run/v2mac.
+        if name.hasPrefix("exit-"), name.hasSuffix(".json"), case let id = String(name.dropFirst(5).dropLast(5)), isWord(id), !id.contains(".") { return true }
         guard name.hasPrefix("plugin-"), let dot = name.lastIndex(of: "."), [".argv", ".env"].contains(name[dot...]) else { return false }
         return isWord(String(name[name.index(name.startIndex, offsetBy: 7)..<dot])) && !name.dropFirst(7).hasPrefix(".")
     }
