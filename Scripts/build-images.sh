@@ -6,11 +6,18 @@ set -e
 cd "$(dirname "$0")/.."
 mkdir -p out/images
 cp rootfs/sway.conf images/base-gui/
+trap 'rm -f images/base-gui/sway.conf' EXIT
 set -- --pull=false --platform linux/arm64 ${PROXY:+--build-arg http_proxy=$PROXY --build-arg https_proxy=$PROXY}
-docker build "$@" -f images/base/Containerfile -t v2mac/base images/base
+# BuildKit asks the registry about a digest FROM even with --pull=false, so the pinned Debian goes in
+# under a local tag, checked to be exactly the pinned image (pulled once if missing).
+pin=$(cat images/debian.lock)
+docker image inspect "$pin" >/dev/null 2>&1 || docker pull --platform linux/arm64 "$pin"
+image=$(docker image inspect --format '{{.Id}}' "$pin")
+docker tag "$image" v2mac/debian-pinned
+[ "$(docker image inspect --format '{{.Id}}' v2mac/debian-pinned)" = "$image" ] || { echo "pinned Debian mismatch"; exit 1; }
+docker build "$@" --build-arg DEBIAN=v2mac/debian-pinned -f images/base/Containerfile -t v2mac/base images/base
 docker build "$@" --build-arg BASE=v2mac/base -f images/base-cli/Containerfile -t v2mac/base-cli images/base-cli
 docker build "$@" --build-arg BASE=v2mac/base -f images/base-gui/Containerfile -t v2mac/base-gui images/base-gui
-rm images/base-gui/sway.conf
 list=""
 for n in base base-cli base-gui; do
   docker save "v2mac/$n" -o "out/images/$n.tar"

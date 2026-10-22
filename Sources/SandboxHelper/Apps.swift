@@ -20,6 +20,8 @@ struct PluginManifest: Decodable, Equatable {
     /// Store plugins only (plan §6): the OCI image archive(s), pinned by SHA-256.
     var layers: [Layer]?
     var source: Source?
+    /// The released base image it is built on (plan §7), exactly as `bases.json` lists it.
+    var from: String?
 
     struct Layer: Codable, Equatable, Sendable {
         var url: URL
@@ -63,9 +65,10 @@ struct PluginManifest: Decodable, Equatable {
     }
 
     /// A store plugin must also bring its image: https layers with a hash and a size.
-    func validateForStore() throws {
+    func validateForStore(bases: Set<String> = Store.bases) throws {
         try validate()
         guard let layers, !layers.isEmpty, layers.count <= 64, source != nil else { throw Invalid("\(id) has no layers.") }
+        guard let from, bases.contains(from) else { throw Invalid("\(id) is not built on a released base image.") }
         for layer in layers {
             guard layer.url.scheme == "https" || Store.allowsLocal(layer.url), layer.sha256.count == 64,
                   layer.sha256.allSatisfy({ $0.isHexDigit && !$0.isUppercase }), (1...(4 << 30)).contains(layer.size)

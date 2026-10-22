@@ -1,5 +1,7 @@
 # Every plugin's root (plan §7 "Base images"): Debian 13 from its signed archive, UTF-8, CA certs.
-FROM debian@sha256:4c25275446ca371766b8b093c696782eabce06263fccacb8d5d813b3dc44b308
+# DEBIAN: debian@sha256 pinned in images/debian.lock (Scripts/build-images.sh tags it locally).
+ARG DEBIAN
+FROM ${DEBIAN}
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates locales-all \
     && rm -rf /var/lib/apt/lists/*
 ENV LANG=C.UTF-8

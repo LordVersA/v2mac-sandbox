@@ -319,6 +319,24 @@ not shown with "Update V2Mac"; no icon from the store.
 1. Base images released from `sandbox`. 2. `plugin-template` with CI, samples built from it.
 3. Plugin API docs.
 *Done when:* a new plugin from the template passes store CI and installs on a clean Mac.
+**In progress locally** (2026-10-22): `../plugin-template` now has the 0BSD template, Containerfile,
+launch script, icons, tag-release workflow, packaging checks/CI and API v1 docs; both samples have
+their own Containerfile and base reference. Packaging refuses unpinned bases and unsafe archive names,
+checks a local base's image id, and fills source, archive URL, size and SHA-256. The helper accepts only
+`from` values in its bundled `bases.json`; missing and unknown bases are tested. Sandbox release CI
+publishes the three bases to GHCR, bundles their exact registry digests and attaches `bases.json` to
+the release. The Debian pin is in `images/debian.lock`.
+
+Verified: 22 sandbox Swift tests, the additional missing/unknown-base cases, helper release build,
+packager boundary tests, and the real template + `hello-pty` archives against the store checker and
+their hashes. A fresh isolated VM accepted a throwaway-key-signed template, loaded both archives with
+Podman, and launched their commands through the pty bridge. Test data, helper and core were isolated;
+the installed V2Mac was not changed. GUI-base build / image-backed `hello-gui` verification remains
+open: downloads failed and Docker's 32 GB disk filled; only this session's temporary build caches
+were removed. The first GHCR release, copying its base list into the store, filling the template's
+`base.txt` placeholders, live submission CI and clean-Mac installation still need publication. No
+repository, tag or release was published. API docs call out current whole-archive downloads,
+folder-sideload limits, generated icons and GUI-only Shared mounts.
 
 ### M7 — Hardening and release
 1. Host leak script, sleep/wake/Wi-Fi/main-VPN scenarios, resource monitor.

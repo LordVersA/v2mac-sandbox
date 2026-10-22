@@ -11,7 +11,7 @@ import Testing
                api: Int = 1) -> Data {
         Data("""
         {"version":\(version),"expires":"\(expires)","minApi":\(minApi),
-         "plugins":[{"api":\(api),"id":"hello-pty","name":"Hello","version":"1.0","display":"pty","launch":{"cmd":["bash"]},
+         "plugins":[{"api":\(api),"id":"hello-pty","name":"Hello","version":"1.0","display":"pty","launch":{"cmd":["bash"]},"from":"base-cli@sha256:b",
            "source":{"repo":"https://github.com/x/y","commit":"abc"},"layers":[{"url":"https://example.com/l.tar","sha256":"\(layerSHA)","size":10}]}],
          "templates":[{"id":"t","name":"Terminal","plugins":["hello-pty"]}],
          "revoked":[{"id":"hello-pty","version":"0.9","reason":"leaks"}]}
@@ -22,7 +22,7 @@ import Testing
 
     @Test func acceptsASignedIndex() throws {
         let data = index()
-        let decoded = try Store.verify(index: data, signature: try sign(data), key: publicKey, lastVersion: 4)
+        let decoded = try Store.verify(index: data, signature: try sign(data), key: publicKey, lastVersion: 4, bases: ["base-cli@sha256:b"])
         #expect(decoded.plugins.map(\.id) == ["hello-pty"])
         #expect(decoded.templates.first?.plugins == ["hello-pty"])
         #expect(!Store.isExpired(decoded))
@@ -49,8 +49,13 @@ import Testing
 
     @Test func dropsPluginsItCannotUse() throws {
         for data in [index(layerSHA: "zz"), index(api: 2)] {
-            #expect(try Store.verify(index: data, signature: try sign(data), key: publicKey, lastVersion: nil).plugins.isEmpty)
+            #expect(try Store.verify(index: data, signature: try sign(data), key: publicKey, lastVersion: nil, bases: ["base-cli@sha256:b"]).plugins.isEmpty)
         }
+        let data = index() // built on a base this sandbox didn't release
+        #expect(try Store.verify(index: data, signature: try sign(data), key: publicKey, lastVersion: nil, bases: ["base-cli@sha256:other"]).plugins.isEmpty)
+        #expect(try Store.verify(index: data, signature: try sign(data), key: publicKey, lastVersion: nil, bases: []).plugins.isEmpty)
+        let missingBase = Data(String(decoding: data, as: UTF8.self).replacingOccurrences(of: ",\"from\":\"base-cli@sha256:b\"", with: "").utf8)
+        #expect(try Store.verify(index: missingBase, signature: try sign(missingBase), key: publicKey, lastVersion: nil, bases: ["base-cli@sha256:b"]).plugins.isEmpty)
     }
 
     @Test func pinnedKeyIsAValidEd25519Key() throws {

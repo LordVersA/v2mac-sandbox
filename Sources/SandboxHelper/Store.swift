@@ -49,7 +49,7 @@ enum Store {
     /// Checks `index` against `signature` and the last version seen; an expired index still decodes
     /// (revocations apply), but `isExpired` blocks installs and updates. Plugins this sandbox can't
     /// use or that break the rules are left out.
-    static func verify(index: Data, signature: String, key: String = publicKey, lastVersion: Int?) throws -> StoreIndex {
+    static func verify(index: Data, signature: String, key: String = publicKey, lastVersion: Int?, bases: Set<String> = bases) throws -> StoreIndex {
         guard let raw = Data(base64Encoded: key), let publicKey = try? Curve25519.Signing.PublicKey(rawRepresentation: raw),
               let sig = Data(base64Encoded: signature.trimmingCharacters(in: .whitespacesAndNewlines)),
               publicKey.isValidSignature(sig, for: Data(SHA256.hash(data: index))) else { throw Refusal.badSignature }
@@ -58,9 +58,16 @@ enum Store {
         guard var decoded = try? decoder.decode(StoreIndex.self, from: index) else { throw Refusal.unreadable }
         if let lastVersion, decoded.version < lastVersion { throw Refusal.rollback(have: lastVersion, got: decoded.version) }
         guard decoded.minApi <= PluginManifest.api else { throw Refusal.tooNew }
-        decoded.plugins = decoded.plugins.filter { (try? $0.validateForStore()) != nil }
+        decoded.plugins = decoded.plugins.filter { (try? $0.validateForStore(bases: bases)) != nil }
         return decoded
     }
+
+    /// The base images released with this sandbox (`Scripts/build-images.sh`, bundled as bases.json).
+    static let bases: Set<String> = {
+        guard let url = Bundle.main.url(forResource: "bases", withExtension: "json"), let data = try? Data(contentsOf: url),
+              let list = try? JSONDecoder().decode([String: [String]].self, from: data) else { return [] }
+        return Set(list["allowed"] ?? [])
+    }()
 
     static func isExpired(_ index: StoreIndex, now: Date = Date()) -> Bool { index.expires <= now }
 
