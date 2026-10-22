@@ -113,7 +113,15 @@ public final class RFBClient: @unchecked Sendable {
             let x = Self.u16(r, 0), y = Self.u16(r, 2), w = Self.u16(r, 4), h = Self.u16(r, 6)
             let encoding = Int32(bitPattern: UInt32(Self.u32(r, 8)))
             if encoding == -223 { try resize(w, h); continue }
-            guard x + w <= width, y + h <= height else { throw Invalid("rectangle outside the framebuffer") }
+            // wayvnc can send one more old-size rectangle right after a resize: drop it unread into the framebuffer.
+            guard x + w <= width, y + h <= height else {
+                switch encoding {
+                case 0: try skip(w * h * 4)
+                case 1: try skip(4)
+                default: throw Invalid("unexpected encoding")
+                }
+                continue
+            }
             switch encoding {
             case 0:
                 try framebuffer.withUnsafeMutableBytes { (fb) throws in
@@ -125,7 +133,7 @@ public final class RFBClient: @unchecked Sendable {
             case 1:
                 let source = try bytes(4)
                 let sx = Self.u16(source, 0), sy = Self.u16(source, 2)
-                guard sx + w <= width, sy + h <= height else { throw Invalid("bad CopyRect source") }
+                guard sx + w <= width, sy + h <= height else { continue }
                 let rows = sy < y ? Array((0..<h).reversed()) : Array(0..<h)
                 let width = width
                 framebuffer.withUnsafeMutableBytes { fb in

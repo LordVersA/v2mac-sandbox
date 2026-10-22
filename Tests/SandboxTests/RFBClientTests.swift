@@ -48,8 +48,6 @@ import Testing
 
     @Test func refusesWhatAHostileGuestSends() throws {
         let bad: [[UInt8]] = [
-            [0, 0] + Self.be16(1) + Self.rect(1, 0, 2, 1, 0),           // past the right edge
-            [0, 0] + Self.be16(1) + Self.rect(0, 0, 1, 1, 1) + Self.be16(2) + Self.be16(0), // CopyRect from outside
             [0, 0] + Self.be16(1) + Self.rect(0, 0, 9000, 9000, -223),  // huge desktop
             [0, 0] + Self.be16(1) + Self.rect(0, 0, 1, 1, 16),          // ZRLE we never asked for
             [3, 0, 0, 0, 0x10, 0, 0, 0],                                 // 256 MB clipboard
@@ -62,6 +60,18 @@ import Testing
         }
         #expect(throws: RFBClient.Invalid.self) { try Pipe(Array("RFB 003.008\n".utf8) + [1, 2]).client().handshake() } // no None
         #expect(throws: RFBClient.Invalid.self) { try Pipe(Self.greeting(0, 5)).client().handshake() }
+    }
+
+    @Test func dropsStaleRectanglesAfterAResize() throws {
+        let stale = Self.rect(1, 0, 2, 1, 0) + [1, 1, 1, 1, 2, 2, 2, 2]          // past the right edge
+        let copy = Self.rect(0, 0, 1, 1, 1) + Self.be16(2) + Self.be16(0)        // CopyRect from outside
+        let raw = Self.rect(0, 1, 1, 1, 0) + [9, 8, 7, 0]
+        let client = Pipe(Self.greeting(2, 2) + [0, 0] + Self.be16(3) + stale + copy + raw).client()
+        nonisolated(unsafe) var frames: [[UInt8]] = []
+        client.onFrame = { frames.append($0.framebuffer) }
+        try client.handshake()
+        #expect(throws: RFBClient.Invalid.self) { try client.run() } // ends at "closed"
+        #expect(frames == [[UInt8](repeating: 0, count: 8) + [9, 8, 7, 0] + [0, 0, 0, 0]])
     }
 
     @Test func survivesRandomStreams() {
