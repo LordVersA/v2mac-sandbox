@@ -206,16 +206,22 @@ import V2MacCore
 
     var ptySocket: URL { root.appendingPathComponent("pty.sock") }
 
-    /// `~/V2Mac Sandbox/<VM>/Shared` (plan "Files"); kept when a mini VM is deleted, it holds the user's files.
-    static func sharedFolder(_ mini: MiniVM) -> URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("V2Mac Sandbox/\(mini.name.replacingOccurrences(of: "/", with: "-"))/Shared", isDirectory: true)
+    /// `~/V2Mac Sandbox/<VM>/Shared` (plan "Files"); kept when a mini VM is deleted, it holds the user's
+    /// files. Two mini VMs never share one: a name another mini VM already uses gets the id added.
+    func sharedFolder(_ mini: MiniVM) -> URL {
+        func safe(_ m: MiniVM) -> String {
+            let name = m.name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+            return name.isEmpty || name.hasPrefix(".") ? m.id : name
+        }
+        let clash = vms.contains { $0.id != mini.id && safe($0).lowercased() == safe(mini).lowercased() }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("V2Mac Sandbox/\(clash ? "\(safe(mini)) \(mini.id)" : safe(mini))/Shared", isDirectory: true)
     }
 
     private func updateShares() {
         var shares: [String: URL] = [:]
         for mini in vms {
-            let folder = Self.sharedFolder(mini)
+            let folder = sharedFolder(mini)
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             shares[mini.id] = folder
         }

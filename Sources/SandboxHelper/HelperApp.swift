@@ -188,7 +188,7 @@ struct SandboxWindow: View {
                 Button("Add App from Folder…") { addApp(to: vm) }
                 Toggle("Paste from Mac", isOn: Binding(get: { vm.pasteIn }, set: { gateway.setClipboard(vm, pasteIn: $0) }))
                 Toggle("Copy to Mac", isOn: Binding(get: { vm.copyOut }, set: { gateway.setClipboard(vm, copyOut: $0) }))
-                Button("Show Shared Folder") { NSWorkspace.shared.open(Gateway.sharedFolder(vm)) }
+                Button("Show Shared Folder") { NSWorkspace.shared.open(gateway.sharedFolder(vm)) }
                 Divider()
                 Toggle("Disposable", isOn: Binding(get: { vm.disposable }, set: { gateway.setDisposable(vm, $0) }))
                 Button("Clone") { gateway.add(cloning: vm) }

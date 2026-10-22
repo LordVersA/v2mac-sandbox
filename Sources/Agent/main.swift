@@ -173,7 +173,16 @@ func servePty(_ c: Int32) -> Never {
     return pid
 }
 
+/// Connects to a socket in a directory the app's container can write: the path is opened without
+/// following links and must be a socket, then connected through /proc so a swapped-in symlink can't
+/// send the root agent somewhere else.
 func connectUnix(_ path: String) -> Int32 {
+    let node = open(path, O_PATH | O_NOFOLLOW | O_CLOEXEC)
+    guard node >= 0 else { return -1 }
+    defer { close(node) }
+    var info = stat()
+    guard fstat(node, &info) == 0, info.st_mode & S_IFMT == S_IFSOCK else { return -1 }
+    let path = "/proc/self/fd/\(node)"
     let s = socket(AF_UNIX, Int32(SOCK_STREAM) | Int32(SOCK_CLOEXEC), 0)
     var addr = sockaddr_un()
     addr.sun_family = sa_family_t(AF_UNIX)
