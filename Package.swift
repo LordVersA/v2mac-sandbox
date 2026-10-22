@@ -14,6 +14,6 @@ let package = Package(
         .executableTarget(name: "Agent", dependencies: ["AgentProtocol"]),
         .target(name: "SandboxHelper", dependencies: ["AgentProtocol", "V2MacCore"]),
         .executableTarget(name: "V2MacSandbox", dependencies: ["SandboxHelper"]),
-        .testTarget(name: "SandboxTests", dependencies: ["AgentProtocol"]),
+        .testTarget(name: "SandboxTests", dependencies: ["AgentProtocol", "SandboxHelper", "V2MacCore"]),
     ]
 )

@@ -3,19 +3,26 @@
 # reproducible with SOURCE_DATE_EPOCH, packed as lz4hc erofs. Run through Scripts/build-rootfs.sh.
 # Needs /work/out/agent (Scripts/build-agent.sh). Output: /work/out/rootfs.erofs.
 set -e
-apt-get update -qq && apt-get install -y -qq mmdebstrap erofs-utils python3-minimal >/dev/null
+apt-get update -qq && apt-get install -y -qq mmdebstrap erofs-utils python3-minimal curl unzip >/dev/null
 : "${SOURCE_DATE_EPOCH:=1761091200}"
 export SOURCE_DATE_EPOCH
 R=/work/rootfs
+. $R/xray.lock
+[ -f /work/out/$ASSET ] || curl -fsSL -o /work/out/$ASSET https://github.com/XTLS/Xray-core/releases/download/$VERSION/$ASSET
+echo "$SHA256  /work/out/$ASSET" | sha256sum -c -
+rm -rf /tmp/xray && unzip -q /work/out/$ASSET xray -d /tmp/xray
 set --
 [ -n "$http_proxy" ] && set -- "--aptopt=Acquire::http::Proxy \"$http_proxy\""
 mkdir -p /work/out/debs
 mmdebstrap --variant=minbase --mode=root --aptopt='Acquire::Retries "5"' "$@" \
   --setup-hook='mkdir -p "$1/var/cache/apt/archives"' --setup-hook='sync-in /work/out/debs /var/cache/apt/archives/' \
   --customize-hook='sync-out /var/cache/apt/archives /work/out/debs' \
-  --include=systemd,systemd-sysv,udev,podman,crun,nftables,uidmap,procps,iproute2,passt,e2fsprogs \
+  --include=systemd,systemd-sysv,udev,podman,crun,nftables,uidmap,procps,iproute2,passt,e2fsprogs,socat,iputils-ping \
   --customize-hook="install -m755 $R/overlay-init \"\$1/sbin/overlay-init\"" \
   --customize-hook="install -m755 /work/out/agent \"\$1/usr/local/bin/v2mac-agent\"" \
+  --customize-hook="install -m755 /tmp/xray/xray \"\$1/usr/local/bin/xray\"" \
+  --customize-hook="install -D -m755 $R/sandbox.sh \"\$1/usr/local/lib/v2mac/sandbox.sh\"" \
+  --customize-hook="install -m755 $R/probe.sh \"\$1/usr/local/lib/v2mac/probe.sh\"" \
   --customize-hook="install -m644 $R/v2mac-agent.service $R/v2mac-data.service \"\$1/etc/systemd/system/\"" \
   --customize-hook='chroot "$1" systemctl enable v2mac-agent.service v2mac-data.service' \
   --customize-hook='chroot "$1" systemctl mask getty@tty1.service serial-getty@hvc0.service' \

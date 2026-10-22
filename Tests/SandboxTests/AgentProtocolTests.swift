@@ -3,7 +3,10 @@ import Testing
 
 @Suite struct AgentProtocolTests {
     @Test func messagesRoundTripAcrossSplitFrames() throws {
-        let sent: [AgentMessage] = [.hello(version: 1), .shutdown, .ok]
+        let sent: [AgentMessage] = [
+            .hello(version: 1), .shutdown, .ok, .put(name: "xray.json", body: "{\"a\": [1, 2]}\n"),
+            .run(["vm-add", "3", "a1b2", "0"]), .result(status: 1, output: "FAIL x\nPASS y"), .result(status: 0, output: ""),
+        ]
         let bytes = sent.flatMap(\.frame)
         var reader = AgentMessage.Reader()
         var got: [AgentMessage] = []
@@ -14,7 +17,8 @@ import Testing
     }
 
     @Test func refusesUnknownAndOversizedFrames() {
-        for text in ["reboot", "hello", "hello x", "shutdown now", ""] {
+        for text in ["reboot", "hello", "hello x", "shutdown now", "", "put /etc/passwd x", "put xray.json",
+                     "run", "run a;reboot", "run $(x)", "run a  b", "result x y"] {
             var reader = AgentMessage.Reader()
             let body = Array(text.utf8)
             #expect(throws: AgentMessage.Invalid.self) { try reader.feed([0, 0, 0, UInt8(body.count)] + body) }

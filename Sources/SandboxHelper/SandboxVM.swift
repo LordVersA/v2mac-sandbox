@@ -18,6 +18,34 @@ import Virtualization
     private var users = 0
     private var idleTask: Task<Void, Never>?
     private var console: FileHandle?
+    private let agentQueue = DispatchQueue(label: "v2mac.sandbox.agent")
+
+    var socketDevice: VZVirtioSocketDevice? { vm?.socketDevices.first as? VZVirtioSocketDevice }
+
+    /// Sends one request to the agent and waits for its answer; nil when the VM is down or the agent
+    /// says something unexpected. Requests are answered in order, one at a time.
+    func call(_ message: AgentMessage) async -> AgentMessage? {
+        guard state == .running, let fd = agent?.fileDescriptor else { return nil }
+        return await withCheckedContinuation { continuation in
+            agentQueue.async {
+                let frame = message.frame
+                let sent = frame.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) } == frame.count
+                continuation.resume(returning: sent ? Self.readMessage(fd, timeoutMS: 180_000) : nil)
+            }
+        }
+    }
+
+    private nonisolated static func readMessage(_ fd: Int32, timeoutMS: Int32) -> AgentMessage? {
+        var reader = AgentMessage.Reader()
+        var buf = [UInt8](repeating: 0, count: 16384)
+        var poller = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+        while poll(&poller, 1, timeoutMS) > 0 {
+            let n = read(fd, &buf, buf.count)
+            guard n > 0, let messages = try? reader.feed(buf[0..<n]) else { return nil }
+            if let first = messages.first { return first }
+        }
+        return nil
+    }
 
     init(root: URL) { self.root = root }
 
@@ -126,15 +154,7 @@ import Virtualization
     }
 
     private nonisolated static func readHello(_ fd: Int32) -> Bool {
-        var reader = AgentMessage.Reader()
-        var buf = [UInt8](repeating: 0, count: 64)
-        var poller = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
-        while poll(&poller, 1, 2000) > 0 {
-            let n = read(fd, &buf, buf.count)
-            guard n > 0, let messages = try? reader.feed(buf[0..<n]) else { return false }
-            if let first = messages.first { return first == .hello(version: AgentMessage.version) }
-        }
-        return false
+        readMessage(fd, timeoutMS: 2000) == .hello(version: AgentMessage.version)
     }
 
     private func reset() {

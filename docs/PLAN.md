@@ -248,6 +248,16 @@ hello 0.8 s after launch, clean poweroff 0.3 s, data disk formatted ext4 on firs
 5. Exit picker, live swap, exit-down notice.
 6. Dev sideload, probe container, `-debugSandbox probe`.
 *Done when:* all leak probes pass; exit swap without restart; main VPN off/on/TUN.
+**Done locally, partly** (2026-10-22): `-debugSandbox probe` makes two probe mini VMs and from one of them
+gets: exit through its server (pod IP = the IP the host sees through that mini VM), names only from the fake
+DNS pool (also when asking 8.8.8.8), no IPv6, no ICMP, the other mini VM and both gateways unreachable,
+route/link/nft changes refused, `socket(AF_VSOCK)` denied; then a live swap to a dead server blocks it and
+the swap back restores the exit, with no core or pod restart, and the exit-down notice reaches V2Mac.
+Built as: xray-in-vm (pinned in `rootfs/xray.lock`) + `rootfs/sandbox.sh` (gateway netns, nft, socat
+relays, pods) driven through the agent's `put`/`run`; host side `Gateway`, `SandboxConfig` (golden-tested,
+checked by the real xray), `RelayListener`. Open: main VPN TUN toggle (not run while the installed V2Mac is
+in use), tcpdump on the NIC, probes in CI (no VZ on GitHub's runners), Fastest as default exit, custom configs
+as exits, the dialer (fragment/noise) on sandbox exits, per mini VM cgroup limits, plugin sideload (with M5).
 
 ### M3 — pty display + permissions
 1. `v2mac-pty`, socket bridge, resize/signals. 2. Permission approval + enforcement.

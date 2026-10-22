@@ -6,13 +6,17 @@ import V2MacCore
 @MainActor public final class HelperApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let link = AppLink()
     private let vm: SandboxVM
-    private let model = WindowModel()
+    private let gateway: Gateway
+    private let model: WindowModel
     private var ramCapMB = SandboxFiles.defaultRAMCapMB(physicalMemory: ProcessInfo.processInfo.physicalMemory)
     private var window: NSWindow?
 
     public override init() {
         // The helper lives in <data>/sandbox/V2Mac Sandbox.app; the VM's files go next to it.
-        vm = SandboxVM(root: Bundle.main.bundleURL.deletingLastPathComponent())
+        let root = Bundle.main.bundleURL.deletingLastPathComponent()
+        vm = SandboxVM(root: root)
+        gateway = Gateway(vm: vm, root: root)
+        model = WindowModel(gateway: gateway)
         super.init()
     }
 
@@ -33,22 +37,34 @@ import V2MacCore
         vm.onState = { [weak self] state in
             log("VM \(state.rawValue)")
             self?.model.state = state
+            self?.gateway.vmStateChanged(state)
             self?.link.send(.vmState(state.rawValue))
         }
+        gateway.requestOutbound = { [weak self] in self?.link.send(.outbound(id: $0)) }
+        gateway.notice = { [weak self] in self?.link.send(.notice(kind: "sandboxExitDown", text: $0)) }
         link.start(onMessage: { [weak self] in self?.handle($0) }, onClose: { [weak self] in self?.quit() })
         link.send(.hello(version: SandboxLink.version))
     }
 
     private func handle(_ message: SandboxLink.ToHelper) {
         switch message {
-        case .hello(let version, let ram):
+        case .hello(let version, let ram, let core):
             guard version == SandboxLink.version else { log("V2Mac speaks link version \(version)"); return quit() }
             ramCapMB = ram
+            gateway.corePath = URL(fileURLWithPath: core)
         case .settings(let ram): ramCapMB = ram // used at the next boot
         case .openWindow: showWindow()
-        case .quitRequest: link.send(.quitReply(appsOpen: false)) // no sandbox apps before M2
+        case .quitRequest: link.send(.quitReply(appsOpen: false)) // no sandbox apps before M3
         case .quit: quit()
-        case .servers, .outbound, .downloaded: break // M2
+        case .servers(let list, let active): gateway.serversChanged(list, active: active)
+        case .outbound(let id, let json): gateway.received(id: id, json: json)
+        case .probe:
+            vm.retain(ramCapMB: ramCapMB)
+            Task {
+                link.send(.probe(await gateway.probe()))
+                vm.release()
+            }
+        case .downloaded: break // M5
         }
     }
 
@@ -75,6 +91,7 @@ import V2MacCore
 
     private func quit() {
         Task {
+            await gateway.stop()
             await vm.stop()
             exit(0)
         }
@@ -85,24 +102,75 @@ import V2MacCore
     var state = SandboxVM.State.stopped
     var start: () -> Void = {}
     var stop: () -> Void = {}
+    let gateway: Gateway
+    init(gateway: Gateway) { self.gateway = gateway }
 }
 
-/// shortcut: a status page until M2 brings the mini VM list.
+/// The Sandbox window: the VM's state and the mini VMs with their exits (plan M2).
 struct SandboxWindow: View {
     let model: WindowModel
+    @State private var confirm: (title: String, action: () -> Void)?
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "shield.lefthalf.filled").font(.system(size: 48)).foregroundStyle(.tint)
-            Text(title).font(.title2)
-            switch model.state {
-            case .stopped: Button("Start") { model.start() }
-            case .running: Button("Stop") { model.stop() }
-            case .booting, .stopping: ProgressView().controlSize(.small)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "shield.lefthalf.filled").foregroundStyle(.tint)
+                Text(title).font(.headline)
+                Spacer()
+                switch model.state {
+                case .stopped: Button("Start") { model.start() }
+                case .running:
+                    Button("Add Mini VM", systemImage: "plus") { model.gateway.add() }.disabled(!model.gateway.ready)
+                    Button("Stop") { model.stop() }
+                case .booting, .stopping: ProgressView().controlSize(.small)
+                }
+            }
+            if model.gateway.vms.isEmpty {
+                ContentUnavailableView("No mini VMs", systemImage: "square.stack.3d.up",
+                                       description: Text("Each mini VM has its own exit and its own data."))
+            } else {
+                List(model.gateway.vms) { vm in row(vm) }
             }
         }
-        .padding(40)
-        .frame(minWidth: 360, minHeight: 240)
+        .padding(20)
+        .frame(minWidth: 520, minHeight: 320)
+        .confirmationDialog(confirm?.title ?? "", isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } })) {
+            Button("Continue", role: .destructive) { confirm?.action() }
+        }
+    }
+
+    private func row(_ vm: MiniVM) -> some View {
+        let gateway = model.gateway
+        return HStack {
+            Text(vm.name)
+            if vm.disposable { Image(systemName: "flame").help("Disposable: data is gone when the sandbox stops") }
+            Spacer()
+            capsule(gateway.exits[vm.id] ?? .unknown)
+            Picker("Exit", selection: Binding(get: { vm.exit }, set: { gateway.setExit(vm, $0) })) {
+                Text("No exit (blocked)").tag(String?.none)
+                ForEach(gateway.servers, id: \.id) { Text($0.name).tag(Optional($0.id)) }
+            }
+            .labelsHidden()
+            .frame(width: 180)
+            Menu {
+                Toggle("Disposable", isOn: Binding(get: { vm.disposable }, set: { gateway.setDisposable(vm, $0) }))
+                Button("Clone") { gateway.add(cloning: vm) }
+                Button("Wipe Data…") { confirm = ("Wipe all data of \(vm.name)?", { gateway.wipe(vm) }) }
+                Button("Delete…", role: .destructive) { confirm = ("Delete \(vm.name) and all its data?", { gateway.delete(vm) }) }
+            } label: { Image(systemName: "ellipsis.circle") }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+        .disabled(!gateway.ready)
+    }
+
+    @ViewBuilder private func capsule(_ status: Gateway.ExitStatus) -> some View {
+        switch status {
+        case .ok(let place): Label(place, systemImage: "shield.fill").foregroundStyle(.green)
+        case .down: Label("Not connected", systemImage: "exclamationmark.shield.fill").foregroundStyle(.red)
+        case .none: Label("Blocked", systemImage: "nosign").foregroundStyle(.secondary)
+        case .unknown: ProgressView().controlSize(.mini)
+        }
     }
 
     private var title: String {
