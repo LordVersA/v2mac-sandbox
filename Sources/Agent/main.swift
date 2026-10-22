@@ -196,8 +196,8 @@ func connectUnix(_ path: String) -> Int32 {
 /// the helper's RFB stream goes there through `RFBClientFilter`, our text and resize messages are
 /// typed or applied here, and wayvnc's answers go back as they are.
 func serveGui(_ c: Int32) -> Never {
-    // words: <n> <id> <plugin> <disposable> <shared> <clipboard> <width> <height> <scale>
-    guard case .gui(let words)? = readFrame(c), words.count == 9 else { exit(1) }
+    // words: <n> <id> <plugin> <disposable> <shared> <clipboard> <width> <height> <scale> <image|->
+    guard case .gui(let words)? = readFrame(c), words.count == 10 else { exit(1) }
     let token = String(getpid())
     let app = script(["gui", token] + words, wait: false)
     var vnc: Int32 = -1

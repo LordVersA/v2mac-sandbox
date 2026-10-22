@@ -50,6 +50,13 @@ import V2MacCore
         FileManager.default.createFile(atPath: store.path, contents: data, attributes: [.posixPermissions: 0o600])
     }
 
+    /// `enqueue` for a step with a result; nil-equivalent when the VM isn't up.
+    private func enqueueResult(_ body: @escaping @MainActor () async -> (ok: Bool, output: String)) -> Task<(ok: Bool, output: String), Never> {
+        nonisolated(unsafe) var result = (ok: false, output: "the sandbox is not running")
+        let done = enqueue { result = await body() }
+        return Task { await done.value; return result }
+    }
+
     /// Runs `body` after every earlier change, once the VM is up.
     @discardableResult private func enqueue(_ body: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
         let previous = work
@@ -179,9 +186,10 @@ import V2MacCore
 
     // MARK: Mini VM actions (plan M2.4)
 
-    func add(cloning source: MiniVM? = nil, name: String? = nil) {
+    /// Adds a mini VM (Empty, or Clone of `source`); returns it before it is set up in the VM.
+    @discardableResult func add(cloning source: MiniVM? = nil, name: String? = nil) -> MiniVM? {
         let name = name ?? source.map { "\($0.name) copy" } ?? "Mini VM \(vms.count + 1)"
-        guard var mini = MiniVM.new(name: name, exit: source?.exit ?? activeServer, taken: vms) else { return }
+        guard var mini = MiniVM.new(name: name, exit: source?.exit ?? activeServer, taken: vms) else { return nil }
         mini.apps = source?.apps ?? []
         enqueue {
             if let source, !(await self.run(["clone", source.id, mini.id]).ok) { return }
@@ -190,6 +198,7 @@ import V2MacCore
             self.save()
             await self.apply()
         }
+        return mini
     }
 
     func delete(_ mini: MiniVM) {
@@ -218,8 +227,12 @@ import V2MacCore
             .appendingPathComponent("V2Mac Sandbox/\(clash ? "\(safe(mini)) \(mini.id)" : safe(mini))/Shared", isDirectory: true)
     }
 
+    /// Layers V2Mac downloaded, seen read-only in the VM as `/exchange/_cache` for `podman load`.
+    var layerCache: URL { root.appendingPathComponent("cache", isDirectory: true) }
+
     private func updateShares() {
-        var shares: [String: URL] = [:]
+        try? FileManager.default.createDirectory(at: layerCache, withIntermediateDirectories: true)
+        var shares: [String: URL] = ["_cache": layerCache]
         for mini in vms {
             let folder = sharedFolder(mini)
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -243,9 +256,34 @@ import V2MacCore
         update(mini.id) { vm in vm.apps.removeAll { $0.id == app.id }; vm.apps.append(app) }
     }
 
+    /// A store plugin (plan §7 "Install"): each layer through V2Mac (hash-checked there, cached by hash,
+    /// so an update fetches only changed ones), loaded into podman in the VM; the app runs from its image.
+    func install(store manifest: PluginManifest, granted: [String], in mini: MiniVM, download: @escaping (PluginManifest.Layer) async -> URL?) async throws {
+        var image: String?
+        for layer in manifest.layers ?? [] {
+            guard await download(layer) != nil else { throw PluginManifest.Invalid("A layer of \(manifest.name) could not be downloaded or did not match the store.") }
+            let loaded = await enqueueResult { await self.run(["load", layer.sha256]) }.value
+            guard loaded.ok, let id = loaded.output.split(separator: "\n").last.map(String.init), AgentMessage.isWord(id)
+            else { throw PluginManifest.Invalid("\(manifest.name) could not be loaded in the sandbox.") }
+            image = id
+        }
+        guard let current = vms.first(where: { $0.id == mini.id }) else { return }
+        var app = InstalledApp(manifest, granted: granted)
+        app.unverified = false
+        app.image = image
+        app.source = manifest.source
+        app.layers = manifest.layers ?? []
+        try StubApps.make(app, in: current, socket: ptySocket)
+        let old = current.apps.first { $0.id == app.id }?.image
+        update(mini.id) { vm in vm.apps.removeAll { $0.id == app.id }; vm.apps.append(app) }
+        if let old, old != image { enqueue { _ = await self.run(["rmi", old]) } }
+    }
+
     func uninstall(_ app: InstalledApp, from mini: MiniVM) {
         StubApps.remove(app, in: mini)
         update(mini.id) { $0.apps.removeAll { $0.id == app.id } }
+        // Still used by the same plugin in another mini VM: podman refuses, which is fine.
+        if let image = app.image { enqueue { _ = await self.run(["rmi", image]) } }
     }
 
     func wipe(_ mini: MiniVM) {

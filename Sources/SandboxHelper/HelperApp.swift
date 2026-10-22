@@ -9,6 +9,7 @@ import V2MacCore
     private let gateway: Gateway
     private let model: WindowModel
     private var pty: PtyServer!
+    private let store: StoreClient
     private let quarantine = QuarantineWatcher(folder: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("V2Mac Sandbox"))
     private var ramCapMB = SandboxFiles.defaultRAMCapMB(physicalMemory: ProcessInfo.processInfo.physicalMemory)
     private var window: NSWindow?
@@ -18,9 +19,10 @@ import V2MacCore
         let root = Bundle.main.bundleURL.deletingLastPathComponent()
         vm = SandboxVM(root: root)
         gateway = Gateway(vm: vm, root: root)
-        model = WindowModel(gateway: gateway)
+        store = StoreClient(root: root)
+        model = WindowModel(gateway: gateway, store: store)
         super.init()
-        pty = PtyServer(vm: vm, gateway: gateway, root: root) { [unowned self] in vm.retain(ramCapMB: ramCapMB) }
+        pty = PtyServer(vm: vm, gateway: gateway, store: store, root: root) { [unowned self] in vm.retain(ramCapMB: ramCapMB) }
     }
 
     public static func main() {
@@ -45,11 +47,42 @@ import V2MacCore
         }
         gateway.requestOutbound = { [weak self] in self?.link.send(.outbound(id: $0)) }
         gateway.notice = { [weak self] in self?.link.send(.notice(kind: "sandboxExitDown", text: $0)) }
+        store.fetch = { [weak self] url in await self?.link.request { .fetch(request: $0, url: url) } }
+        model.download = { [weak self] layer in await self?.link.request { .download(request: $0, url: layer.url, sha256: layer.sha256) } }
         link.start(onMessage: { [weak self] in self?.handle($0) }, onClose: { [weak self] in self?.quit() })
         link.send(.hello(version: SandboxLink.version))
         pty.start()
         quarantine.start()
         sideloadHook()
+        templateHook()
+    }
+
+    /// `V2MAC_SANDBOX_TEMPLATE=<template id>` with a local `V2MAC_SANDBOX_STORE` (dev testing): makes a
+    /// mini VM from that store template with every permission its apps ask for, and logs the outcome.
+    private func templateHook() {
+        guard let id = ProcessInfo.processInfo.environment["V2MAC_SANDBOX_TEMPLATE"] else { return }
+        vm.retain(ramCapMB: ramCapMB)
+        Task {
+            for _ in 0..<900 where !gateway.ready || gateway.servers.isEmpty { try? await Task.sleep(for: .milliseconds(100)) }
+            await store.refresh(force: true)
+            guard let template = store.index?.templates.first(where: { $0.id == id }) else {
+                vm.release()
+                return log("template \(id): \(store.problem ?? "not in the index")")
+            }
+            guard !store.isExpired, let mini = gateway.add(name: template.name) else {
+                vm.release()
+                return log("template \(id): the index has expired, nothing installed")
+            }
+            for plugin in template.plugins.compactMap({ store.index?.plugin($0) }) {
+                do {
+                    try await gateway.install(store: plugin, granted: plugin.permissions ?? [], in: mini, download: model.download)
+                    log("template \(id): installed \(plugin.id) \(plugin.version) into \(mini.name) (\(mini.id))")
+                } catch {
+                    log("template \(id): \(plugin.id) refused: \(error.localizedDescription)")
+                }
+            }
+            vm.release()
+        }
     }
 
     /// `V2MAC_SANDBOX_SIDELOAD=<plugin folder>` (dev testing): boots the VM, makes mini VM "Work" if
@@ -91,7 +124,7 @@ import V2MacCore
                 link.send(.probe(await gateway.probe()))
                 vm.release()
             }
-        case .downloaded: break // M5
+        case .downloaded(let request, let path): link.downloaded(request, path: path)
         }
     }
 
@@ -106,6 +139,7 @@ import V2MacCore
             model.start = { [weak self] in guard let self else { return }; vm.boot(ramCapMB: ramCapMB) }
         }
         if window?.isVisible != true { vm.retain(ramCapMB: ramCapMB) }
+        Task { await store.refresh() } // plan §7: when the window opens, at most daily
         NSApp.setActivationPolicy(.regular)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate()
@@ -129,8 +163,10 @@ import V2MacCore
     var state = SandboxVM.State.stopped
     var start: () -> Void = {}
     var stop: () -> Void = {}
+    @ObservationIgnored var download: (PluginManifest.Layer) async -> URL? = { _ in nil }
     let gateway: Gateway
-    init(gateway: Gateway) { self.gateway = gateway }
+    let store: StoreClient
+    init(gateway: Gateway, store: StoreClient) { self.gateway = gateway; self.store = store }
 }
 
 /// The Sandbox window: the VM's state and the mini VMs with their exits (plan M2).
@@ -147,7 +183,17 @@ struct SandboxWindow: View {
                 switch model.state {
                 case .stopped: Button("Start") { model.start() }
                 case .running:
-                    Button("Add Mini VM", systemImage: "plus") { model.gateway.add() }.disabled(!model.gateway.ready)
+                    Menu("Add Mini VM", systemImage: "plus") {
+                        Button("Empty") { model.gateway.add() }
+                        if let templates = model.store.index?.templates, !templates.isEmpty {
+                            Section("Templates") { ForEach(templates, id: \.id) { t in Button(t.name) { addFromTemplate(t) } } }
+                        }
+                        if !model.gateway.vms.isEmpty {
+                            Section("Clone") { ForEach(model.gateway.vms) { vm in Button("\(vm.name) (apps and data)") { model.gateway.add(cloning: vm) } } }
+                        }
+                    }
+                    .fixedSize()
+                    .disabled(!model.gateway.ready)
                     Button("Stop") { model.stop() }
                 case .booting, .stopping: ProgressView().controlSize(.small)
                 }
@@ -180,12 +226,28 @@ struct SandboxWindow: View {
             .labelsHidden()
             .frame(width: 180)
             ForEach(vm.apps) { app in
-                Button(app.name, systemImage: app.display == "gui" ? "macwindow" : "terminal") { NSWorkspace.shared.open(StubApps.url(app, in: vm)) }
-                    .help(app.unverified ? "Unverified: sideloaded, not from the V2Mac store" : app.name)
-                    .contextMenu { Button("Remove \(app.name)", role: .destructive) { gateway.uninstall(app, from: vm) } }
+                let revoked = model.store.index?.revocation(of: app)
+                let newer = model.store.index?.plugin(app.id).flatMap { $0.version != app.version && !app.unverified ? $0 : nil }
+                Button(app.name, systemImage: revoked != nil ? "exclamationmark.octagon.fill" : app.display == "gui" ? "macwindow" : "terminal") {
+                    NSWorkspace.shared.open(StubApps.url(app, in: vm))
+                }
+                .help(revoked.map { "Withdrawn from the store: \($0.reason)" } ?? (app.unverified ? "Unverified: sideloaded, not from the V2Mac store" : app.name))
+                .contextMenu {
+                    Button("Verify Installation…") { verify(app, in: vm) }
+                    if let newer { Button("Update to \(newer.version)") { installFromStore(newer, into: vm, keeping: app.granted) } }
+                    Button("Remove \(app.name)", role: .destructive) { gateway.uninstall(app, from: vm) }
+                }
             }
             Menu {
-                Button("Add App from Folder…") { addApp(to: vm) }
+                Menu("Add App") {
+                    ForEach(model.store.index?.plugins ?? [], id: \.id) { plugin in
+                        Button("\(plugin.name) \(plugin.version)") { installFromStore(plugin, into: vm) }
+                    }
+                    .disabled(model.store.isExpired)
+                    if let problem = model.store.problem { Text(problem) }
+                    Divider()
+                    Button("From Folder (Unverified)…") { addApp(to: vm) }
+                }
                 Toggle("Paste from Mac", isOn: Binding(get: { vm.pasteIn }, set: { gateway.setClipboard(vm, pasteIn: $0) }))
                 Toggle("Copy to Mac", isOn: Binding(get: { vm.copyOut }, set: { gateway.setClipboard(vm, copyOut: $0) }))
                 Button("Show Shared Folder") { NSWorkspace.shared.open(gateway.sharedFolder(vm)) }
@@ -208,22 +270,75 @@ struct SandboxWindow: View {
         panel.canChooseFiles = false
         panel.message = "Choose a plugin folder (with plugin.json)"
         guard panel.runModal() == .OK, let folder = panel.url else { return }
-        let alert = NSAlert()
         do {
             let manifest = try PluginManifest.load(folder: folder)
-            let asks = manifest.permissions ?? []
-            alert.messageText = "Install \(manifest.name) in \(vm.name)?"
-            let lines = asks.map { "• " + Self.permissionText[$0, default: $0] }
-            alert.informativeText = (["It is not from the V2Mac store (Unverified)."] + (asks.isEmpty ? [] : ["It asks to:"] + lines)).joined(separator: "\n")
-            alert.addButton(withTitle: asks.isEmpty ? "Install" : "Allow and Install")
-            if !asks.isEmpty { alert.addButton(withTitle: "Install Without These") }
-            alert.addButton(withTitle: "Cancel")
-            let answer = alert.runModal()
-            guard answer != .alertThirdButtonReturn, asks.isEmpty ? answer == .alertFirstButtonReturn : true else { return }
-            try model.gateway.install(manifest, granted: answer == .alertFirstButtonReturn ? asks : [], in: vm)
+            guard let granted = Self.approve(manifest.name, asks: manifest.permissions ?? [], into: vm.name, note: "It is not from the V2Mac store (Unverified).") else { return }
+            try model.gateway.install(manifest, granted: granted, in: vm)
         } catch {
             NSAlert(error: error).runModal()
         }
+    }
+
+    /// Asks the user to approve an app's permissions (plan §6); nil when cancelled.
+    static func approve(_ name: String, asks: [String], into vm: String, note: String? = nil) -> [String]? {
+        let alert = NSAlert()
+        alert.messageText = "Install \(name) in \(vm)?"
+        let lines = asks.map { "• " + permissionText[$0, default: $0] }
+        alert.informativeText = ([note].compactMap { $0 } + (asks.isEmpty ? [] : ["It asks to:"] + lines)).joined(separator: "\n")
+        alert.addButton(withTitle: asks.isEmpty ? "Install" : "Allow and Install")
+        if !asks.isEmpty { alert.addButton(withTitle: "Install Without These") }
+        alert.addButton(withTitle: "Cancel")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: return asks
+        case .alertSecondButtonReturn where !asks.isEmpty: return []
+        default: return nil
+        }
+    }
+
+    /// Install or update from the signed index; an update keeps earlier approvals unless it asks for more.
+    private func installFromStore(_ plugin: PluginManifest, into vm: MiniVM, keeping granted: [String]? = nil) {
+        guard !model.store.isExpired else { return }
+        let asks = plugin.permissions ?? []
+        let approved: [String]? = if let granted, Set(asks).isSubset(of: granted) { asks.filter(granted.contains) } else { Self.approve(plugin.name, asks: asks, into: vm.name) }
+        guard let approved else { return }
+        Task {
+            do { try await model.gateway.install(store: plugin, granted: approved, in: vm, download: model.download) }
+            catch { NSAlert(error: error).runModal() }
+        }
+    }
+
+    /// A new mini VM named after the template with its apps (plan "Add": Template); one approval for all.
+    private func addFromTemplate(_ template: StoreIndex.Template) {
+        let plugins = template.plugins.compactMap { model.store.index?.plugin($0) }
+        let asks = Array(Set(plugins.flatMap { $0.permissions ?? [] })).sorted()
+        guard !model.store.isExpired, let granted = Self.approve(plugins.map(\.name).joined(separator: ", "), asks: asks, into: template.name),
+              let vm = model.gateway.add(name: template.name) else { return }
+        Task {
+            for plugin in plugins {
+                do { try await model.gateway.install(store: plugin, granted: (plugin.permissions ?? []).filter(granted.contains), in: vm, download: model.download) }
+                catch { NSAlert(error: error).runModal() }
+            }
+        }
+    }
+
+    /// Verify Installation (plan §7): where it came from and whether its layers are unchanged since
+    /// published. "Verified" means unchanged, not safe.
+    private func verify(_ app: InstalledApp, in vm: MiniVM) {
+        var lines = ["Version \(app.version)", "Permissions: \(app.granted.isEmpty ? "none" : app.granted.joined(separator: ", "))"]
+        if app.unverified {
+            lines.append("Unverified: sideloaded from a folder, not from the V2Mac store.")
+        } else {
+            if let source = app.source { lines.append("Source: \(source.repo) at \(source.commit)") }
+            let listed = model.store.index?.plugin(app.id)
+            lines.append(listed?.version == app.version && listed?.layers == app.layers ? "Listed in the signed store index." : "Not in the current signed store index as installed.")
+            if let revoked = model.store.index?.revocation(of: app) { lines.append("Withdrawn: \(revoked.reason)") }
+            let intact = app.layers.allSatisfy { (try? SandboxFiles.sha256(of: model.gateway.layerCache.appendingPathComponent($0.sha256))) == $0.sha256 }
+            lines.append(intact ? "Layers re-hashed: unchanged since published." : "Layers re-hashed: CHANGED or missing.")
+        }
+        let alert = NSAlert()
+        alert.messageText = "\(app.name) in \(vm.name)"
+        alert.informativeText = lines.joined(separator: "\n")
+        alert.runModal()
     }
 
     static let permissionText = [

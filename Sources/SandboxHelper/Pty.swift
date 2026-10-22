@@ -12,11 +12,13 @@ import Virtualization
     private let vm: SandboxVM
     private let gateway: Gateway
     private let retain: () -> Void
+    private let store: StoreClient
     let socket: URL
 
-    init(vm: SandboxVM, gateway: Gateway, root: URL, retain: @escaping () -> Void) {
+    init(vm: SandboxVM, gateway: Gateway, store: StoreClient, root: URL, retain: @escaping () -> Void) {
         self.vm = vm
         self.gateway = gateway
+        self.store = store
         self.retain = retain
         socket = root.appendingPathComponent("pty.sock")
     }
@@ -67,6 +69,9 @@ import Virtualization
         guard ids.count == (gui ? 5 : 2), let mini = gateway.vms.first(where: { $0.id == ids[0] }),
               let app = mini.apps.first(where: { $0.id == ids[1] }), (app.display == "gui") == gui
         else { return reject("this app is no longer in the sandbox.") }
+        if let revoked = store.index?.revocation(of: app) {
+            return reject("\(app.name) \(app.version) was withdrawn from the store (\(revoked.reason)). Update or remove it in the Sandbox window.")
+        }
         var size: [String] = []
         if gui {
             guard let w = Int(ids[2]), let h = Int(ids[3]), let scale = Int(ids[4]),
@@ -85,8 +90,8 @@ import Virtualization
         let flag = { $0 ? "1" : "0" }
         let clipboard = app.allows("clipboard")
         let open: AgentMessage = gui
-            ? .gui([String(mini.index), mini.id, app.id, flag(mini.disposable), flag(app.allows("shared")), flag(clipboard && mini.pasteIn)] + size)
-            : .pty([String(mini.index), mini.id, app.id, flag(mini.disposable), flag(withSSH)])
+            ? .gui([String(mini.index), mini.id, app.id, flag(mini.disposable), flag(app.allows("shared")), flag(clipboard && mini.pasteIn)] + size + [app.image ?? "-"])
+            : .pty([String(mini.index), mini.id, app.id, flag(mini.disposable), flag(withSSH), app.image ?? "-"])
         // The stub learns whether it may put the app's copies on the Mac's clipboard, and the title capsule.
         let header = gui ? Array("ok \(flag(clipboard && mini.copyOut)) \(capsule(mini))\n".utf8) : []
         sessions += 1

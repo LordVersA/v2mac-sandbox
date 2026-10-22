@@ -299,6 +299,21 @@ caret-placed candidates; ⌘ shortcuts that clash with app menus.
 3. Install/update (changed layers only)/remove, Verify Installation, revoked handling.
 4. Add sheet: Empty / Template / Clone.
 *Done when:* tampered layer/index and expired index are refused; a template makes a working mini VM.
+**Done locally** (2026-10-22): `../store` has the index format, `Scripts/ledger-sign.py sign index.json` (refuses a
+Ledger whose key isn't `key.pub`), `prepare-index.py` (version + 1, 90-day expiry, add/revoke/template),
+`check-submission.py` (same rules as the helper, release assets only, tag commit = `source.commit`, `from` in
+`bases.json`), the expiry-issue and submission-comment workflows (the base branch's checker judges a PR) and
+`REVIEW.md`; `index.json` v1 is empty and unsigned until the user signs it. Helper: `Store.verify` (pinned key,
+rollback via `store.json`, expiry, `minApi`, revocations, plugins checked like the store's), `StoreClient` refreshing
+through the new link `fetch` (link version 3), layers through `download` (V2Mac hash-checks them into
+`sandbox/cache`, shared read-only into the VM as `/exchange/_cache`), `podman load`, apps run from their image;
+Verify Installation, Update (keeps approvals unless it asks for more), Remove (`rmi`), withdrawn apps refused at
+launch, Add Mini VM → Empty / Template / Clone. Checked end to end against a local test store signed with a
+throwaway key: template "Terminal VM" installs `hello-pty` from its image and exits through its server; a layer with
+the wrong hash, a tampered index, an expired index and an older index (rollback) are each refused. Open: a "layer"
+is a whole `docker/podman save` archive (cached by hash, so unchanged ones aren't fetched again, but not real OCI
+layer dedup); the helper doesn't check `from` yet (base images come in M6); plugins with a newer `api` are hidden,
+not shown with "Update V2Mac"; no icon from the store.
 
 ### M6 — SDK
 1. Base images released from `sandbox`. 2. `plugin-template` with CI, samples built from it.

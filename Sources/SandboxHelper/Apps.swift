@@ -17,6 +17,20 @@ struct PluginManifest: Decodable, Equatable {
     var display: String
     var launch: Launch
     var permissions: [String]?
+    /// Store plugins only (plan §6): the OCI image archive(s), pinned by SHA-256.
+    var layers: [Layer]?
+    var source: Source?
+
+    struct Layer: Codable, Equatable, Sendable {
+        var url: URL
+        var sha256: String
+        var size: Int64
+    }
+
+    struct Source: Codable, Equatable, Sendable {
+        var repo: String
+        var commit: String
+    }
 
     static let api = 1
     static let knownPermissions = ["clipboard", "shared", "ssh-agent"]
@@ -47,6 +61,17 @@ struct PluginManifest: Decodable, Equatable {
         }
         guard (permissions ?? []).allSatisfy(Self.knownPermissions.contains) else { throw Invalid("plugin.json asks for an unknown permission.") }
     }
+
+    /// A store plugin must also bring its image: https layers with a hash and a size.
+    func validateForStore() throws {
+        try validate()
+        guard let layers, !layers.isEmpty, layers.count <= 64, source != nil else { throw Invalid("\(id) has no layers.") }
+        for layer in layers {
+            guard layer.url.scheme == "https" || Store.allowsLocal(layer.url), layer.sha256.count == 64,
+                  layer.sha256.allSatisfy({ $0.isHexDigit && !$0.isUppercase }), (1...(4 << 30)).contains(layer.size)
+            else { throw Invalid("\(id) has a bad layer.") }
+        }
+    }
 }
 
 /// A plugin installed in one mini VM, with the permissions the user approved (plan §6: the runtime
@@ -62,6 +87,10 @@ struct InstalledApp: Codable, Identifiable, Equatable, Sendable {
     var granted: [String]
     /// Sideloaded from a folder, not from the signed store.
     var unverified = true
+    /// The loaded image's id for a store plugin; nil runs on the VM's own root (sideloads).
+    var image: String?
+    var source: PluginManifest.Source?
+    var layers: [PluginManifest.Layer] = []
 
     init(_ manifest: PluginManifest, granted: [String]) {
         id = manifest.id
@@ -92,6 +121,9 @@ extension InstalledApp {
         env = try c.decode([String: String].self, forKey: .env)
         granted = try c.decode([String].self, forKey: .granted)
         unverified = try c.decodeIfPresent(Bool.self, forKey: .unverified) ?? true
+        image = try c.decodeIfPresent(String.self, forKey: .image)
+        source = try c.decodeIfPresent(PluginManifest.Source.self, forKey: .source)
+        layers = try c.decodeIfPresent([PluginManifest.Layer].self, forKey: .layers) ?? []
     }
 }
 

@@ -12,6 +12,8 @@ export XDG_RUNTIME_DIR=$R/xdg
 asapp() { runuser -u app -- env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR "$@"; }
 gw() { ip netns exec gw "$@"; }
 int() { case "$1" in ''|*[!0-9]*) echo "bad number $1"; exit 2;; esac; }
+# A store plugin's loaded image (hex id), or "-" for the VM's own root (sideloads, M0 stand-in for base).
+rootof() { case "$1" in -) echo "--rootfs $CTR";; *[!0-9a-f]*|'') echo "bad image $1" >&2; exit 2;; *) echo "$1";; esac; }
 num() { case "$1" in ''|*[!0-9]*) echo "bad index $1"; exit 2;; esac; [ "$1" -ge 1 ] && [ "$1" -le 250 ] || { echo "bad index $1"; exit 2; }; }
 # Every container of a mini VM: rootless, no caps, our seccomp (no AF_VSOCK), read-only root.
 # `--rootfs $CTR` goes last, before the command: it makes the next word the root path.
@@ -82,9 +84,9 @@ clone) # clone <from> <to>: copy a mini VM's data before vm-add of the copy
   install -d -o app -g app -m700 "/data/vms/$3"
   cp -a "/data/vms/$2/home" "/data/vms/$3/"
   ;;
-app) # app <n> <id> <plugin> <disposable 0|1> <ssh-agent 0|1>: a plugin's launch command in mini VM n on
+app) # app <n> <id> <plugin> <disposable 0|1> <ssh-agent 0|1> <image id|->: a plugin's launch command in mini VM n on
   # this tty (the agent's pty), from $R/plugin-<id>-<plugin>.argv and .env (written by `put` just before)
-  num "$2"; n=$2; id=$3; p=$4
+  num "$2"; n=$2; id=$3; p=$4; root=$(rootof "$7")
   if [ "$5" = 1 ]; then home="--mount type=tmpfs,destination=/root"; else home="-v /data/vms/$id/home:/root"; fi
   chown app "$R/plugin-$id-$p.env"
   ssh=""
@@ -100,11 +102,11 @@ app) # app <n> <id> <plugin> <disposable 0|1> <ssh-agent 0|1>: a plugin's launch
   # shellcheck disable=SC2086
   xargs -0 -a "$R/plugin-$id-$p.argv" runuser -u app -- env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR podman run --rm -it \
     --label "v2mac.vm=$id" --network "container:vm-$id" $HARDENED $home $ssh -e TERM=xterm-256color \
-    --env-file "$R/plugin-$id-$p.env" -v "$R/resolv-$n:/etc/resolv.conf:ro" -w /root --rootfs $CTR
+    --env-file "$R/plugin-$id-$p.env" -v "$R/resolv-$n:/etc/resolv.conf:ro" -w /root $root
   ;;
-gui) # gui <token> <n> <id> <plugin> <disposable> <shared> <clipboard> <width> <height> <scale>: a window app
+gui) # gui <token> <n> <id> <plugin> <disposable> <shared> <clipboard> <width> <height> <scale> <image id|->: a window app
   # under sway, served by wayvnc on $R/gui-<token>/vnc.sock (the agent's session connects there)
-  int "$2"; t=$2; shift; num "$2"; n=$2; id=$3; p=$4; int "$8"; int "$9"; int "${10}"
+  int "$2"; t=$2; shift; num "$2"; n=$2; id=$3; p=$4; int "$8"; int "$9"; int "${10}"; root=$(rootof "${11}")
   if [ "$5" = 1 ]; then home="--mount type=tmpfs,destination=/root"; else home="-v /data/vms/$id/home:/root"; fi
   shared=""; [ "$6" = 1 ] && [ -d "/exchange/$id" ] && shared="-v /exchange/$id:/root/Shared"
   sound=""; [ -d /dev/snd ] && sound="--device /dev/snd"
@@ -114,7 +116,7 @@ gui) # gui <token> <n> <id> <plugin> <disposable> <shared> <clipboard> <width> <
   xargs -0 -a "$R/plugin-$id-$p.argv" runuser -u app -- env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR podman run --rm --name "gui-$t" \
     --label "v2mac.vm=$id" --network "container:vm-$id" $HARDENED $home $shared $sound -v "$d:/run/vnc" \
     -e XDG_RUNTIME_DIR=/run/vnc -e WLR_BACKENDS=headless -e WLR_RENDERER=pixman -e WLR_LIBINPUT_NO_DEVICES=1 -e LANG=C.UTF-8 \
-    --env-file "$R/plugin-$id-$p.env" -v "$R/resolv-$n:/etc/resolv.conf:ro" -w /root --rootfs $CTR \
+    --env-file "$R/plugin-$id-$p.env" -v "$R/resolv-$n:/etc/resolv.conf:ro" -w /root $root \
     sh -c 'sway -c /etc/v2mac/sway.conf >/run/vnc/sway.log 2>&1 & sway=$!
       for _ in $(seq 100); do for w in /run/vnc/wayland-*; do [ -S "$w" ] && break 2; done; sleep 0.1; done
       export WAYLAND_DISPLAY=${w##*/}; echo "$WAYLAND_DISPLAY" > /run/vnc/display
@@ -135,6 +137,16 @@ gui-stop) # gui-stop <token>
   int "$2"
   asapp podman rm -f -t0 "gui-$2" >/dev/null 2>&1 || true
   rm -rf "$R/gui-$2" "$R/gui-$2.log"
+  ;;
+load) # load <sha256>: a store layer V2Mac downloaded (an OCI or docker image archive); prints the image id
+  case "$2" in *[!0-9a-f]*|'') echo "bad layer"; exit 2;; esac
+  name=$(asapp podman load -q -i "/exchange/_cache/$2" | sed -n 's/^Loaded image[^:]*: *//p' | tail -n1)
+  [ -n "$name" ] || { echo "nothing loaded"; exit 1; }
+  asapp podman image inspect -f '{{.Id}}' "${name%%,*}"
+  ;;
+rmi) # rmi <image id>
+  case "$2" in *[!0-9a-f]*|'') exit 2;; esac
+  asapp podman rmi "$2" >/dev/null 2>&1 || true
   ;;
 probe) # probe <n> <id> <other n> <other id>: leak probes from mini VM n (plan §9)
   num "$2"; num "$4"

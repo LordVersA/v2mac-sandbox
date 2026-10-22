@@ -7,6 +7,8 @@ import V2MacCore
     static let fd: Int32 = 3
 
     private let handle = FileHandle(fileDescriptor: AppLink.fd, closeOnDealloc: true)
+    private var nextRequest = 0
+    private var waiting: [Int: CheckedContinuation<URL?, Never>] = [:]
 
     /// Fd 3 is a socket only when V2Mac started us.
     static var isPresent: Bool {
@@ -27,6 +29,21 @@ import V2MacCore
                 messages.forEach(onMessage)
             }
         }
+    }
+
+    /// Asks V2Mac to fetch a file (`fetch` or `download`) and waits for the local path it answers with.
+    func request(_ message: (Int) -> SandboxLink.ToApp) async -> URL? {
+        nextRequest += 1
+        let id = nextRequest
+        return await withCheckedContinuation { continuation in
+            waiting[id] = continuation
+            send(message(id))
+        }
+    }
+
+    /// V2Mac's answer to `request`.
+    func downloaded(_ request: Int, path: String?) {
+        waiting.removeValue(forKey: request)?.resume(returning: path.map { URL(fileURLWithPath: $0) })
     }
 
     func send(_ message: SandboxLink.ToApp) {
