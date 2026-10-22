@@ -21,10 +21,10 @@ import RFB
         guard fd >= 0 else { return fail("V2Mac Sandbox is not running. Open the Sandbox in V2Mac, then open this app again.") }
         let line = "gui \(vm) \(app) \(Int(points.width) * scale) \(Int(points.height) * scale) \(scale)\n"
         _ = Array(line.utf8).withUnsafeBytes { Darwin.write(fd, $0.baseAddress, $0.count) }
-        let fd = fd
+        let socketFD = fd
         Thread.detachNewThread { [weak self] in
             // Header: "ok <copy to Mac 0|1> <title capsule>", or the helper's reason for saying no.
-            let header = Self.readLine(fd) ?? ""
+            let header = Self.readLine(socketFD) ?? ""
             DispatchQueue.main.async { self?.start(header: header, points: points, scale: scale) }
         }
     }
