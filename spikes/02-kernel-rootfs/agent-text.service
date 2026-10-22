@@ -1,0 +1,4 @@
+[Service]
+ExecStart=/usr/local/bin/agent text 1029
+[Install]
+WantedBy=multi-user.target

@@ -184,6 +184,26 @@ case "fwd":
         }
         close(c)
     }
+case "text":
+    // Spike 0.8: `agent text <vsock port>` types each newline-terminated UTF-8 line into the Wayland
+    // session with wtype (it builds a keymap for any character, which RFB keysyms can't reach).
+    let s = listenVsock(UInt32(CommandLine.arguments[2])!)
+    signal(SIGCHLD, SIG_DFL)
+    while true {
+        let c = accept(s, nil, nil)
+        if c < 0 { continue }
+        var pending = [UInt8](), buf = [UInt8](repeating: 0, count: 4096)
+        while case let n = read(c, &buf, buf.count), n > 0 {
+            pending += buf[0..<n]
+            while let nl = pending.firstIndex(of: 10) {
+                let text = String(decoding: pending[..<nl], as: UTF8.self)
+                pending.removeSubrange(...nl)
+                let out = run(["runuser", "-u", "app", "--", "env", "XDG_RUNTIME_DIR=/run/user/1000", "WAYLAND_DISPLAY=wayland-0", "LANG=C.UTF-8", "wtype", "--", text])
+                print("agent text: \(text.unicodeScalars.count) chars \(out)"); fflush(stdout)
+            }
+        }
+        close(c)
+    }
 default: break
 }
 

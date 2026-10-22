@@ -41,10 +41,10 @@ out.fileHandleForReading.readabilityHandler = { h in
     }
     if s.contains("S05 done") { print("[spike] S05 done") }
     if s.contains("S09 done") { print("[spike] S09 done") }
-    for line in s.split(separator: "\n") where line.contains("S07 ") {
+    for line in s.split(separator: "\n") where line.contains("S07 ") || line.contains("S08 ") {
         let words = line.split(separator: " ")
-        guard let i = words.firstIndex(of: "S07"), i + 2 < words.count else { continue }
-        let phase = String(words[i + 2]).trimmingCharacters(in: .punctuationCharacters)
+        guard let i = words.firstIndex(where: { $0 == "S07" || $0 == "S08" }), i + 2 < words.count else { continue }
+        let phase = String(words[i + 2]).trimmingCharacters(in: .punctuationCharacters.union(.whitespacesAndNewlines))
         DispatchQueue.main.async {
             if words[i + 1] == "ready" { rfbBegin(phase) }
             if words[i + 1] == "end" { rfbEnd() }
@@ -148,5 +148,5 @@ vm.start {
     (vm.socketDevices.first as? VZVirtioSocketDevice)?.setSocketListener(l, forPort: 1027)
     keep.append(l); servePty()
 }
-NSApplication.shared.setActivationPolicy(.accessory)
+NSApplication.shared.setActivationPolicy(.regular)
 NSApplication.shared.run()

@@ -10,6 +10,7 @@ final class RFBClient {
     var fb = [UInt8]()
     var updates = 0, bytes = 0
     var running = true
+    var textFD: Int32 = -1
     let layer = CALayer()
     var window: NSWindow?
     init(fd: Int32, name: String) { self.fd = fd; self.name = name }
@@ -49,6 +50,7 @@ final class RFBClient {
         send([1]) // shared
         guard let si = readN(24) else { return false }
         width = u16(si, 0); height = u16(si, 2)
+        guard (1...8192).contains(width), (1...8192).contains(height) else { print("[rfb] bad framebuffer size"); return false }
         _ = readN(Int(si[20]) << 24 | Int(si[21]) << 16 | Int(si[22]) << 8 | Int(si[23]))
         // 32 bpp, depth 24, little endian, true colour, max 255 each, shifts r16 g8 b0 = BGRX in memory
         send([0, 0, 0, 0, 32, 24, 0, 1] + be16(255) + be16(255) + be16(255) + [16, 8, 0, 0, 0, 0])
@@ -63,6 +65,16 @@ final class RFBClient {
         guard handshake() else { print("[rfb] handshake failed"); return }
         DispatchQueue.main.sync { showWindow(scale: scale) }
         request(incremental: false)
+        if ProcessInfo.processInfo.environment["V2MAC_SELFTEST"] != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                for word in ["Hello ", "سلام دنیا", " 123"] {
+                    if word.unicodeScalars.allSatisfy({ $0.isASCII }) { word.unicodeScalars.forEach { self.tap(Keysym.of($0)) } } else { self.sendText(word) }
+                    usleep(300_000)
+                }
+                self.tap(Keysym.ret); self.tap(0x61, mods: [Keysym.ctrl]) // Ctrl+A selects all
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.saveFrame() }
+            }
+        }
         while running {
             guard let t = readN(1) else { break }
             switch t[0] {
@@ -72,14 +84,17 @@ final class RFBClient {
                     guard let r = readN(12) else { return }
                     let x = u16(r, 0), y = u16(r, 2), w = u16(r, 4), hh = u16(r, 6)
                     let enc = Int32(bitPattern: UInt32(r[8]) << 24 | UInt32(r[9]) << 16 | UInt32(r[10]) << 8 | UInt32(r[11]))
+                    // The guest is untrusted: every rectangle must lie inside the framebuffer.
+                    guard enc == -223 || (x + w <= width && y + hh <= height) else { print("[rfb] rectangle outside the framebuffer"); return }
                     switch enc {
                     case 0:
                         if x == 0 && w == width { guard readInto(w * hh * 4, at: y * width * 4) else { return } }
                         else { for row in 0..<hh { guard readInto(w * 4, at: ((y + row) * width + x) * 4) else { return } } }
                     case 1:
-                        guard let s = readN(4) else { return }
+                        guard let s = readN(4), u16(s, 0) + w <= width, u16(s, 2) + hh <= height else { print("[rfb] bad CopyRect source"); return }
                         copyRect(sx: u16(s, 0), sy: u16(s, 2), dx: x, dy: y, w: w, h: hh)
                     case -223:
+                        guard (1...8192).contains(w), (1...8192).contains(hh) else { print("[rfb] bad desktop size"); return }
                         width = w; height = hh; fb = [UInt8](repeating: 0, count: w * hh * 4)
                     default: print("[rfb] unexpected encoding \(enc)"); return
                     }
@@ -108,15 +123,24 @@ final class RFBClient {
                             provider: CGDataProvider(data: data)!, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
         DispatchQueue.main.async { CATransaction.begin(); CATransaction.setDisableActions(true); self.layer.contents = image; CATransaction.commit() }
     }
+    func saveFrame() {
+        if let img = (layer.contents as! CGImage?), let dest = CGImageDestinationCreateWithURL(URL(fileURLWithPath: "/private/tmp/claude-501/-Users-parsaradfar-Programming-Projects-v2mac/cbc83175-f729-4899-aee1-e94fec6d36e5/scratchpad/frame-\(name).png") as CFURL, "public.png" as CFString, 1, nil) {
+            CGImageDestinationAddImage(dest, img, nil); CGImageDestinationFinalize(dest)
+        }
+    }
     func showWindow(scale: CGFloat) {
-        let w = NSWindow(contentRect: NSRect(x: 100, y: 100, width: CGFloat(width) / scale, height: CGFloat(height) / scale), styleMask: [.titled], backing: .buffered, defer: false)
+        let w = NSWindow(contentRect: NSRect(x: 100, y: 100, width: CGFloat(width) / scale, height: CGFloat(height) / scale), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+        let view = InputView(); view.client = self
+        w.contentView = view
         w.isReleasedWhenClosed = false
         w.title = "V2Mac Sandbox spike 0.7 — \(name)"
         w.contentView!.wantsLayer = true
         layer.frame = w.contentView!.bounds
         layer.contentsScale = scale
         w.contentView!.layer!.addSublayer(layer)
-        w.orderFrontRegardless()
+        w.acceptsMouseMovedEvents = true
+        w.makeKeyAndOrderFront(nil); w.makeFirstResponder(view)
+        NSApplication.shared.activate()
         window = w
     }
 }
@@ -133,6 +157,11 @@ func rfbBegin(_ name: String) {
         keep.append(c)
         let client = RFBClient(fd: c.fileDescriptor, name: name)
         rfb = client
+        DispatchQueue.main.async { // never connect from inside a connect handler: VZ crashes
+            (vm.socketDevices.first as? VZVirtioSocketDevice)?.connect(toPort: 1029) { r in
+                if case .success(let t) = r { keep.append(t); client.textFD = t.fileDescriptor }
+            }
+        }
         rfbStart = (Date(), cpuSeconds())
         Thread.detachNewThread { client.run(scale: name.hasSuffix("2x") ? 2 : 1) }
     }
@@ -141,9 +170,7 @@ func rfbEnd() {
     guard let c = rfb else { return }
     let s = Date().timeIntervalSince(rfbStart.0), cpu = cpuSeconds() - rfbStart.1
     print(String(format: "[rfb] %@: %.1f updates/s, %.1f MB/s, host client CPU %.0f%% of one core", c.name, Double(c.updates) / s, Double(c.bytes) / s / 1e6, cpu / s * 100))
-    if let img = (c.layer.contents as! CGImage?), let dest = CGImageDestinationCreateWithURL(URL(fileURLWithPath: "/private/tmp/claude-501/-Users-parsaradfar-Programming-Projects-v2mac/cbc83175-f729-4899-aee1-e94fec6d36e5/scratchpad/frame-\(c.name).png") as CFURL, "public.png" as CFString, 1, nil) {
-        CGImageDestinationAddImage(dest, img, nil); CGImageDestinationFinalize(dest)
-    }
+    c.saveFrame()
     c.running = false; shutdown(c.fd, SHUT_RDWR)
     DispatchQueue.main.async { c.window?.close() }
     rfb = nil

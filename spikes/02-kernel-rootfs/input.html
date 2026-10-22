@@ -1,0 +1,15 @@
+<!doctype html><meta charset=utf-8><title>input</title>
+<style>body{margin:0;display:grid;grid-template-columns:1fr 320px;height:100vh;font:18px Vazirmatn,sans-serif;background:#f4f4f6}
+textarea{margin:16px;font:22px Vazirmatn,sans-serif;padding:12px;resize:none}
+#side{display:grid;grid-template-rows:200px 1fr;border-left:1px solid #ccc}
+#log{font:13px monospace;padding:8px;overflow:hidden;white-space:pre;background:#222;color:#9f9}
+#list{overflow-y:scroll;padding:8px}#list div{padding:6px;border-bottom:1px solid #ddd}</style>
+<textarea id=t dir=auto placeholder="Type here: English, فارسی, IME, ⌘A ⌘C ⌘V ⌘Z, ⌥←"></textarea>
+<div id=side><div id=log>keys the guest receives</div><div id=list></div></div>
+<script>
+// Shows what arrives in the guest, and gives the trackpad something to scroll.
+const log=document.getElementById('log'),lines=[];
+addEventListener('keydown',e=>{lines.unshift(`${e.key.padEnd(10)} ${e.code.padEnd(12)}${e.ctrlKey?' ctrl':''}${e.altKey?' alt':''}${e.shiftKey?' shift':''}${e.metaKey?' meta':''}`);log.textContent=lines.slice(0,9).join('\n')});
+for(let i=1;i<=300;i++){const d=document.createElement('div');d.textContent=`ردیف ${i} — row ${i}`;list.appendChild(d)}
+t.focus();
+</script>
