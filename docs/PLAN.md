@@ -35,7 +35,7 @@ SSH, RDP… are **separate plugin repos** built later; two tiny sample plugins p
 | Kernel | **Our own minimal kernel** from the current kernel.org LTS; a weekly CI job builds new point releases, runs boot + leak probes and opens a PR. |
 | VM agent | **Swift**, built with the Static Linux SDK; agent protocol types shared with the helper in one package. |
 | Repos | One `sandbox` repo (helper, agent, protocol, image build); it uses `../app/Packages/V2MacCore` by path, CI checks out the app at a pinned tag beside it. Plus `store` and `plugin-template`. |
-| Store | Separate repo, one `index.json` signed offline **on a Ledger Nano S Plus/X** (Ed25519 via the SSH/PGP Agent app, `ssh-keygen -Y sign`, SSHSIG format; the recovery phrase is the backup). Expires after **90 days**; a GitHub Action opens an issue at 60. |
+| Store | Separate repo, one `index.json` signed offline **on a Ledger Nano S Plus/X** (Ed25519 via the SSH/PGP Agent app's generic-hash command: signature over SHA-256 of the file, sent by our own `ledgerblue` script; the recovery phrase is the backup; M0 0.12). Expires after **90 days**; a GitHub Action opens an issue at 60. |
 | Publishing | Release builds install only what the index lists; dev builds can sideload a local plugin folder. Submissions are PRs to the store repo; store CI posts a check report; you review with a checklist, merge, sign. |
 | Revocation | `revoked: [{id, version, reason}]` in the index; the sandbox stops that version and offers Update or Remove; data stays. |
 | Builds | Each plugin repo's CI builds its OCI layers at a tag; the index pins commit + every layer's SHA-256. |
@@ -151,7 +151,7 @@ Plugins with a newer `api` are hidden with "Update V2Mac"; a breaking change mea
 `api: 1` keeps working.
 
 ## 7. Store, trust, SDK
-- **`store` repo**: `index.json` + `index.json.sig` (SSHSIG, Ed25519, signed on the Ledger;
+- **`store` repo**: `index.json` + `index.json.sig` (base64 Ed25519 over SHA-256(index), signed on the Ledger;
   public key pinned in the helper, verified with CryptoKit `Curve25519.Signing`). Fields: `version`
   (monotonic, rollback refused), `expires` (90 days; installs/updates blocked after, running plugins
   untouched), `minApi`, `plugins[]` (full manifests, pinned commit + layer hashes), `templates[]`,
@@ -188,7 +188,7 @@ Plugins with a newer `api` are hidden with "Update V2Mac"; a breaking change mea
 ## 9. Automated security tests
 - **`app` package**: link message parsing (fuzz), outbound handout.
 - **`sandbox` package**: agent protocol fuzzing, RFB parser fuzzing, index/manifest parsing,
-  SSHSIG/rollback/expiry/revocation/`api` checks, gateway nft + xray config golden tests.
+  signature/rollback/expiry/revocation/`api` checks, gateway nft + xray config golden tests.
 - **In-VM probe container** (needs the runtime): direct TCP/UDP, DNS to 8.8.8.8, IPv6, ICMP, STUN
   public IP ≠ exit IP, reaching another mini VM, nft/route change, `socket(AF_VSOCK)` all fail;
   traffic through the assigned exit works. Run on every kernel bump PR.
@@ -223,7 +223,7 @@ Plugins with a newer `api` are hidden with "Update V2Mac"; a breaking change mea
 | 0.9 | virtio-sound + PipeWire | plays | audio after v1 | **Go** (2026-10-22): VZ virtio-sound output → guest `virtio-snd` card; PipeWire + WirePlumber (no D-Bus) play through `pipewire-alsa`, PCM `RUNNING` at ~48k frames/s. `spikes/02-kernel-rootfs/spike09.sh` |
 | 0.10 | Generated ad-hoc stubs: launch, own Dock identity, LaunchServices | works | per-window Dock tiles | **Go** (2026-10-22): copies of one stub with their own `Info.plist`, iconset and ad-hoc signature, registered with `lsregister`: separate apps in `lsappinfo`, own tinted Dock tiles, `open -b` finds each. `spikes/10-stubs` |
 | 0.11 | pty bridge in Terminal.app + ssh-agent forward | works | own terminal window | **Go** (2026-10-22): Terminal.app → `v2mac-pty` (raw mode; keyboard and resize frames) → Unix socket → helper → vsock → agent `forkpty` bash. Resize 24×80 → 40×120 and Ctrl-C reach the guest; guest `ssh-add -l` and `ssh-keygen -Y sign` use the Mac's agent over vsock 2:1027. `spikes/02-kernel-rootfs/pty.swift` |
-| 0.12 | Ledger SSH/PGP Agent app: Ed25519 key, `ssh-keygen -Y sign`, CryptoKit verify | works | Keychain key + paper backup |
+| 0.12 | Ledger SSH/PGP Agent app: Ed25519 key, `ssh-keygen -Y sign`, CryptoKit verify | works | Keychain key + paper backup | **Go, changed** (2026-10-22, Ledger in hand): no `ssh-keygen -Y sign`: trezor-agent dropped Ledger support (2026-02) and the app's SSH command (INS 04) only parses SSH login requests, so SSHSIG is impossible. Its generic-hash command (INS 06, P2 0x02) signs SHA-256(data) with Ed25519 after an on-device approval; our `ledgerblue` script drives it, CryptoKit verifies and rejects a 1-byte change. Ledger Live needs Developer mode to show the app. `spikes/12-ledger` |
 
 *Done when:* results recorded here and every decision confirmed or changed.
 
@@ -258,7 +258,7 @@ Plugins with a newer `api` are hidden with "Update V2Mac"; a breaking change mea
 
 ### M5 — Store and templates
 1. `store` repo: index format, Ledger signing script, expiry reminder workflow, submission CI, checklist.
-2. Helper: index + manifest checks (SSHSIG, rollback, expiry, revocation, `api`, `from`).
+2. Helper: index + manifest checks (signature, rollback, expiry, revocation, `api`, `from`).
 3. Install/update (changed layers only)/remove, Verify Installation, revoked handling.
 4. Add sheet: Empty / Template / Clone.
 *Done when:* tampered layer/index and expired index are refused; a template makes a working mini VM.
