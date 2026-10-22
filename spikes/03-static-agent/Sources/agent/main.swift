@@ -166,6 +166,24 @@ case "sshfwd":
         }
         close(c)
     }
+case "fwd":
+    // Spike 0.7: `agent fwd <vsock port> <unix path>` carries each vsock connection to a local Unix socket (wayvnc).
+    let args = CommandLine.arguments
+    let s = listenVsock(UInt32(args[2])!)
+    signal(SIGCHLD, SIG_IGN)
+    while true {
+        let c = accept(s, nil, nil)
+        if c < 0 { continue }
+        if fork() == 0 {
+            let u = socket(AF_UNIX, Int32(SOCK_STREAM), 0)
+            var addr = sockaddr_un(); addr.sun_family = sa_family_t(AF_UNIX)
+            withUnsafeMutableBytes(of: &addr.sun_path) { p in for (i, ch) in args[3].utf8.enumerated() { p[i] = ch } }
+            let ok = withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(u, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) } } == 0
+            if ok { relay(c, u) }
+            exit(0)
+        }
+        close(c)
+    }
 default: break
 }
 

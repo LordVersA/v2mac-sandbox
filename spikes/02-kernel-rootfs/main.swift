@@ -2,6 +2,7 @@
 // Usage: boot <Image> <rootfs.erofs> [ram MB]
 import Foundation
 import Virtualization
+import AppKit
 
 let args = CommandLine.arguments
 guard args.count >= 3 else { print("usage: boot <Image> <rootfs.erofs> [ram MB]"); exit(2) }
@@ -40,6 +41,15 @@ out.fileHandleForReading.readabilityHandler = { h in
     }
     if s.contains("S05 done") { print("[spike] S05 done") }
     if s.contains("S09 done") { print("[spike] S09 done") }
+    for line in s.split(separator: "\n") where line.contains("S07 ") {
+        let words = line.split(separator: " ")
+        guard let i = words.firstIndex(of: "S07"), i + 2 < words.count else { continue }
+        let phase = String(words[i + 2]).trimmingCharacters(in: .punctuationCharacters)
+        DispatchQueue.main.async {
+            if words[i + 1] == "ready" { rfbBegin(phase) }
+            if words[i + 1] == "end" { rfbEnd() }
+        }
+    }
 }
 // Spike 0.11: Unix socket for v2mac-pty → vsock 1026 (guest pty), and vsock 1027 from the guest → host ssh-agent.
 var keep: [AnyObject] = []
@@ -138,4 +148,5 @@ vm.start {
     (vm.socketDevices.first as? VZVirtioSocketDevice)?.setSocketListener(l, forPort: 1027)
     keep.append(l); servePty()
 }
-dispatchMain()
+NSApplication.shared.setActivationPolicy(.accessory)
+NSApplication.shared.run()

@@ -1,0 +1,13 @@
+<!doctype html><title>heavy</title>
+<style>body{margin:0;overflow:hidden;background:#123;font:24px sans-serif;color:#fff}
+canvas{position:fixed;inset:0}h1{position:fixed;left:40px;top:40px;animation:spin 3s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}</style>
+<canvas id=c></canvas><h1>V2Mac heavy page</h1>
+<script>
+// 400 moving circles over the whole window, redrawn every frame.
+const c=document.getElementById('c'),x=c.getContext('2d'),dpr=devicePixelRatio;
+const b=[...Array(400)].map(()=>({x:Math.random(),y:Math.random(),vx:(Math.random()-.5)/150,vy:(Math.random()-.5)/150,h:Math.random()*360}));
+function f(){c.width=innerWidth*dpr;c.height=innerHeight*dpr;x.fillStyle='#123';x.fillRect(0,0,c.width,c.height);
+for(const p of b){p.x=(p.x+p.vx+1)%1;p.y=(p.y+p.vy+1)%1;x.fillStyle=`hsl(${p.h},70%,60%)`;x.beginPath();x.arc(p.x*c.width,p.y*c.height,20*dpr,0,7);x.fill()}
+requestAnimationFrame(f)}f();
+</script>

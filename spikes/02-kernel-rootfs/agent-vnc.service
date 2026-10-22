@@ -1,0 +1,4 @@
+[Service]
+ExecStart=/usr/local/bin/agent fwd 1028 /run/vnc/vnc.sock
+[Install]
+WantedBy=multi-user.target
