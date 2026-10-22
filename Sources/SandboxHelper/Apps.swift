@@ -165,6 +165,10 @@ enum StubApps {
         ]
         try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
             .write(to: bundle.appendingPathComponent("Contents/Info.plist"))
+        // The stub's own texts: the helper's compiled String Catalog.
+        for lproj in (try? fm.contentsOfDirectory(at: Bundle.main.resourceURL!, includingPropertiesForKeys: nil)) ?? [] where lproj.pathExtension == "lproj" {
+            try fm.copyItem(at: lproj, to: resources.appendingPathComponent(lproj.lastPathComponent))
+        }
         try icon(name: app.name, hue: vm.hue).write(to: resources.appendingPathComponent("AppIcon.icns"))
         if app.display == "pty" {
             let words = [helper.appendingPathComponent("v2mac-pty").path, socket.path, vm.id, app.id, "\(app.name) — \(vm.name)"]

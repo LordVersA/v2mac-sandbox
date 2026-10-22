@@ -231,7 +231,7 @@ struct SandboxWindow: View {
                 Button(app.name, systemImage: revoked != nil ? "exclamationmark.octagon.fill" : app.display == "gui" ? "macwindow" : "terminal") {
                     NSWorkspace.shared.open(StubApps.url(app, in: vm))
                 }
-                .help(revoked.map { "Withdrawn from the store: \($0.reason)" } ?? (app.unverified ? "Unverified: sideloaded, not from the V2Mac store" : app.name))
+                .help(revoked.map { String(localized: "Withdrawn from the store: \($0.reason)") } ?? (app.unverified ? String(localized: "Unverified: sideloaded, not from the V2Mac store") : app.name))
                 .contextMenu {
                     Button("Verify Installation…") { verify(app, in: vm) }
                     if let newer { Button("Update to \(newer.version)") { installFromStore(newer, into: vm, keeping: app.granted) } }
@@ -254,8 +254,8 @@ struct SandboxWindow: View {
                 Divider()
                 Toggle("Disposable", isOn: Binding(get: { vm.disposable }, set: { gateway.setDisposable(vm, $0) }))
                 Button("Clone") { gateway.add(cloning: vm) }
-                Button("Wipe Data…") { confirm = ("Wipe all data of \(vm.name)?", { gateway.wipe(vm) }) }
-                Button("Delete…", role: .destructive) { confirm = ("Delete \(vm.name) and all its data?", { gateway.delete(vm) }) }
+                Button("Wipe Data…") { confirm = (String(localized: "Wipe all data of \(vm.name)?"), { gateway.wipe(vm) }) }
+                Button("Delete…", role: .destructive) { confirm = (String(localized: "Delete \(vm.name) and all its data?"), { gateway.delete(vm) }) }
             } label: { Image(systemName: "ellipsis.circle") }
             .menuStyle(.borderlessButton)
             .fixedSize()
@@ -268,11 +268,11 @@ struct SandboxWindow: View {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.message = "Choose a plugin folder (with plugin.json)"
+        panel.message = String(localized: "Choose a plugin folder (with plugin.json)")
         guard panel.runModal() == .OK, let folder = panel.url else { return }
         do {
             let manifest = try PluginManifest.load(folder: folder)
-            guard let granted = Self.approve(manifest.name, asks: manifest.permissions ?? [], into: vm.name, note: "It is not from the V2Mac store (Unverified).") else { return }
+            guard let granted = Self.approve(manifest.name, asks: manifest.permissions ?? [], into: vm.name, note: String(localized: "It is not from the V2Mac store (Unverified).")) else { return }
             try model.gateway.install(manifest, granted: granted, in: vm)
         } catch {
             NSAlert(error: error).runModal()
@@ -282,12 +282,12 @@ struct SandboxWindow: View {
     /// Asks the user to approve an app's permissions (plan §6); nil when cancelled.
     static func approve(_ name: String, asks: [String], into vm: String, note: String? = nil) -> [String]? {
         let alert = NSAlert()
-        alert.messageText = "Install \(name) in \(vm)?"
+        alert.messageText = String(localized: "Install \(name) in \(vm)?")
         let lines = asks.map { "• " + permissionText[$0, default: $0] }
-        alert.informativeText = ([note].compactMap { $0 } + (asks.isEmpty ? [] : ["It asks to:"] + lines)).joined(separator: "\n")
-        alert.addButton(withTitle: asks.isEmpty ? "Install" : "Allow and Install")
-        if !asks.isEmpty { alert.addButton(withTitle: "Install Without These") }
-        alert.addButton(withTitle: "Cancel")
+        alert.informativeText = ([note].compactMap { $0 } + (asks.isEmpty ? [] : [String(localized: "It asks to:")] + lines)).joined(separator: "\n")
+        alert.addButton(withTitle: asks.isEmpty ? String(localized: "Install") : String(localized: "Allow and Install"))
+        if !asks.isEmpty { alert.addButton(withTitle: String(localized: "Install Without These")) }
+        alert.addButton(withTitle: String(localized: "Cancel"))
         switch alert.runModal() {
         case .alertFirstButtonReturn: return asks
         case .alertSecondButtonReturn where !asks.isEmpty: return []
@@ -324,27 +324,28 @@ struct SandboxWindow: View {
     /// Verify Installation (plan §7): where it came from and whether its layers are unchanged since
     /// published. "Verified" means unchanged, not safe.
     private func verify(_ app: InstalledApp, in vm: MiniVM) {
-        var lines = ["Version \(app.version)", "Permissions: \(app.granted.isEmpty ? "none" : app.granted.joined(separator: ", "))"]
+        let granted = app.granted.isEmpty ? String(localized: "none") : app.granted.joined(separator: ", ")
+        var lines = [String(localized: "Version \(app.version)"), String(localized: "Permissions: \(granted)")]
         if app.unverified {
-            lines.append("Unverified: sideloaded from a folder, not from the V2Mac store.")
+            lines.append(String(localized: "Unverified: sideloaded from a folder, not from the V2Mac store."))
         } else {
-            if let source = app.source { lines.append("Source: \(source.repo) at \(source.commit)") }
+            if let source = app.source { lines.append(String(localized: "Source: \(source.repo) at \(source.commit)")) }
             let listed = model.store.index?.plugin(app.id)
-            lines.append(listed?.version == app.version && listed?.layers == app.layers ? "Listed in the signed store index." : "Not in the current signed store index as installed.")
-            if let revoked = model.store.index?.revocation(of: app) { lines.append("Withdrawn: \(revoked.reason)") }
+            lines.append(listed?.version == app.version && listed?.layers == app.layers ? String(localized: "Listed in the signed store index.") : String(localized: "Not in the current signed store index as installed."))
+            if let revoked = model.store.index?.revocation(of: app) { lines.append(String(localized: "Withdrawn: \(revoked.reason)")) }
             let intact = app.layers.allSatisfy { (try? SandboxFiles.sha256(of: model.gateway.layerCache.appendingPathComponent($0.sha256))) == $0.sha256 }
-            lines.append(intact ? "Layers re-hashed: unchanged since published." : "Layers re-hashed: CHANGED or missing.")
+            lines.append(intact ? String(localized: "Layers re-hashed: unchanged since published.") : String(localized: "Layers re-hashed: CHANGED or missing."))
         }
         let alert = NSAlert()
-        alert.messageText = "\(app.name) in \(vm.name)"
+        alert.messageText = String(localized: "\(app.name) in \(vm.name)")
         alert.informativeText = lines.joined(separator: "\n")
         alert.runModal()
     }
 
     static let permissionText = [
-        "ssh-agent": "Use the SSH keys in your Mac's ssh-agent while it is open",
-        "clipboard": "Use the clipboard",
-        "shared": "Read and write this mini VM's Shared folder",
+        "ssh-agent": String(localized: "Use the SSH keys in your Mac's ssh-agent while it is open"),
+        "clipboard": String(localized: "Use the clipboard"),
+        "shared": String(localized: "Read and write this mini VM's Shared folder"),
     ]
 
     @ViewBuilder private func capsule(_ status: Gateway.ExitStatus) -> some View {
@@ -356,7 +357,7 @@ struct SandboxWindow: View {
         }
     }
 
-    private var title: String {
+    private var title: LocalizedStringKey {
         switch model.state {
         case .stopped: "Sandbox is stopped"
         case .booting: "Starting the sandbox…"

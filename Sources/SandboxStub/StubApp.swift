@@ -18,7 +18,7 @@ import RFB
         let scale = Int(screen?.backingScaleFactor ?? 2) >= 2 ? 2 : 1
         let points = NSSize(width: 1100, height: 720)
         fd = Self.connect(socket)
-        guard fd >= 0 else { return fail("V2Mac Sandbox is not running. Open the Sandbox in V2Mac, then open this app again.") }
+        guard fd >= 0 else { return fail(String(localized: "V2Mac Sandbox is not running. Open the Sandbox in V2Mac, then open this app again.")) }
         let line = "gui \(vm) \(app) \(Int(points.width) * scale) \(Int(points.height) * scale) \(scale)\n"
         _ = Array(line.utf8).withUnsafeBytes { Darwin.write(fd, $0.baseAddress, $0.count) }
         let socketFD = fd
@@ -32,7 +32,7 @@ import RFB
     private func start(header: String, points: NSSize, scale: Int) {
         let words = header.split(separator: " ", maxSplits: 2).map(String.init)
         guard words.first == "ok", words.count == 3 else {
-            return fail(header.replacingOccurrences(of: "v2mac-pty: ", with: "").isEmpty ? "The sandbox did not answer." : header)
+            return fail(header.replacingOccurrences(of: "v2mac-pty: ", with: "").isEmpty ? String(localized: "The sandbox did not answer.") : header)
         }
         let fd = fd
         let client = RFBClient(read: { Darwin.read(fd, $0.baseAddress, $0.count) },
@@ -63,7 +63,7 @@ import RFB
 
     private func fail(_ text: String) {
         let alert = NSAlert()
-        alert.messageText = "\(name) can't open"
+        alert.messageText = String(localized: "\(name) can't open")
         alert.informativeText = text
         alert.runModal()
         NSApp.terminate(nil)
@@ -76,13 +76,13 @@ import RFB
     private func menu() -> NSMenu {
         let main = NSMenu()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "Hide \(name)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        appMenu.addItem(withTitle: "Quit \(name)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        let edit = NSMenu(title: "Edit")
-        edit.addItem(withTitle: "Paste", action: #selector(RFBView.paste(_:)), keyEquivalent: "v")
-        let window = NSMenu(title: "Window")
-        window.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
-        window.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        appMenu.addItem(withTitle: String(localized: "Hide \(name)"), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: String(localized: "Quit \(name)"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let edit = NSMenu(title: String(localized: "Edit"))
+        edit.addItem(withTitle: String(localized: "Paste"), action: #selector(RFBView.paste(_:)), keyEquivalent: "v")
+        let window = NSMenu(title: String(localized: "Window"))
+        window.addItem(withTitle: String(localized: "Minimize"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        window.addItem(withTitle: String(localized: "Close"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         for menu in [appMenu, edit, window] {
             let item = NSMenuItem()
             item.submenu = menu

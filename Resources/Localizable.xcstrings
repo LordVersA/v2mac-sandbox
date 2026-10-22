@@ -1,0 +1,1458 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%@ (apps and data)": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (برنامه‌ها و داده‌ها)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（应用和数据）"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (приложения и данные)"
+          }
+        }
+      }
+    },
+    "%@ can't open": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ باز نمی‌شود"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 无法打开"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ не открывается"
+          }
+        }
+      }
+    },
+    "%@ in %@": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ در %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ 中的 %1$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ в %@"
+          }
+        }
+      }
+    },
+    "Add App": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "افزودن برنامه"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加应用"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить приложение"
+          }
+        }
+      }
+    },
+    "Add Mini VM": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "افزودن ماشین مجازی کوچک"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加迷你虚拟机"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить мини-ВМ"
+          }
+        }
+      }
+    },
+    "Allow and Install": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اجازه و نصب"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许并安装"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешить и установить"
+          }
+        }
+      }
+    },
+    "Blocked": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مسدود"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已阻止"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заблокировано"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لغو"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменить"
+          }
+        }
+      }
+    },
+    "Choose a plugin folder (with plugin.json)": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "یک پوشهٔ افزونه (دارای plugin.json) انتخاب کنید"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择一个插件文件夹（包含 plugin.json）"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите папку плагина (с plugin.json)"
+          }
+        }
+      }
+    },
+    "Clone": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کپی"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "克隆"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Клонировать"
+          }
+        }
+      }
+    },
+    "Close": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بستن"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрыть"
+          }
+        }
+      }
+    },
+    "Continue": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ادامه"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Продолжить"
+          }
+        }
+      }
+    },
+    "Copy to Mac": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کپی به مک"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制到 Mac"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Копировать на Mac"
+          }
+        }
+      }
+    },
+    "Delete %@ and all its data?": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ و همهٔ داده‌هایش حذف شود؟"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除 %@ 及其所有数据？"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить %@ и все его данные?"
+          }
+        }
+      }
+    },
+    "Delete…": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "حذف…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить…"
+          }
+        }
+      }
+    },
+    "Disposable": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "یک‌بارمصرف"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次性"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Одноразовая"
+          }
+        }
+      }
+    },
+    "Disposable: data is gone when the sandbox stops": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "یک‌بارمصرف: با توقف سندباکس داده‌ها پاک می‌شوند"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次性：沙盒停止后数据即被清除"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Одноразовая: данные исчезают при остановке песочницы"
+          }
+        }
+      }
+    },
+    "Each mini VM has its own exit and its own data.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "هر ماشین مجازی کوچک خروجی و داده‌های خودش را دارد."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个迷你虚拟机都有自己的出口和自己的数据。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У каждой мини-ВМ свой выход и свои данные."
+          }
+        }
+      }
+    },
+    "Edit": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ویرایش"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Правка"
+          }
+        }
+      }
+    },
+    "Empty": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "خالی"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空白"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пустая"
+          }
+        }
+      }
+    },
+    "Exit": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "خروجی"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出口"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выход"
+          }
+        }
+      }
+    },
+    "From Folder (Unverified)…": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "از پوشه (تأییدنشده)…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从文件夹（未验证）…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Из папки (не проверено)…"
+          }
+        }
+      }
+    },
+    "Hide %@": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پنهان کردن %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏 %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скрыть %@"
+          }
+        }
+      }
+    },
+    "Install": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "نصب"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установить"
+          }
+        }
+      }
+    },
+    "Install %@ in %@?": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ در %@ نصب شود؟"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 %2$@ 中安装 %1$@？"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установить %@ в %@?"
+          }
+        }
+      }
+    },
+    "Install Without These": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "نصب بدون این‌ها"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不授予这些权限并安装"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установить без них"
+          }
+        }
+      }
+    },
+    "It asks to:": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "این موارد را می‌خواهد:"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它请求："
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оно запрашивает:"
+          }
+        }
+      }
+    },
+    "It is not from the V2Mac store (Unverified).": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "از فروشگاه V2Mac نیست (تأییدنشده)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它不是来自 V2Mac 商店（未验证）。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оно не из магазина V2Mac (не проверено)."
+          }
+        }
+      }
+    },
+    "Layers re-hashed: CHANGED or missing.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "هش لایه‌ها دوباره بررسی شد: تغییر کرده یا وجود ندارد."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已重新计算层哈希：已更改或缺失。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Слои перепроверены: ИЗМЕНЕНЫ или отсутствуют."
+          }
+        }
+      }
+    },
+    "Layers re-hashed: unchanged since published.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "هش لایه‌ها دوباره بررسی شد: از زمان انتشار تغییری نکرده."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已重新计算层哈希：自发布以来未更改。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Слои перепроверены: не изменились с публикации."
+          }
+        }
+      }
+    },
+    "Listed in the signed store index.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "در فهرست امضاشدهٔ فروشگاه هست."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已列入签名的商店索引。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Есть в подписанном индексе магазина."
+          }
+        }
+      }
+    },
+    "Minimize": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کوچک کردن"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最小化"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свернуть"
+          }
+        }
+      }
+    },
+    "No exit (blocked)": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بدون خروجی (مسدود)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无出口（已阻止）"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без выхода (заблокировано)"
+          }
+        }
+      }
+    },
+    "No mini VMs": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ماشین مجازی کوچکی وجود ندارد"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有迷你虚拟机"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет мини-ВМ"
+          }
+        }
+      }
+    },
+    "Not connected": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "وصل نیست"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未连接"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не подключено"
+          }
+        }
+      }
+    },
+    "Not in the current signed store index as installed.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "به شکل نصب‌شده در فهرست امضاشدهٔ فعلی فروشگاه نیست."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前签名的商店索引中没有与已安装版本一致的条目。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет в текущем подписанном индексе магазина в установленном виде."
+          }
+        }
+      }
+    },
+    "Paste": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "چسباندن"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставить"
+          }
+        }
+      }
+    },
+    "Paste from Mac": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "چسباندن از مک"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从 Mac 粘贴"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставка с Mac"
+          }
+        }
+      }
+    },
+    "Permissions: %@": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مجوزها: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "权限：%@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешения: %@"
+          }
+        }
+      }
+    },
+    "Quit %@": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "خروج از %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出 %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить %@"
+          }
+        }
+      }
+    },
+    "Read and write this mini VM's Shared folder": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "خواندن و نوشتن در پوشهٔ Shared این ماشین مجازی کوچک"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读写此迷你虚拟机的 Shared 文件夹"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Читать и записывать папку Shared этой мини-ВМ"
+          }
+        }
+      }
+    },
+    "Remove %@": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "حذف %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить %@"
+          }
+        }
+      }
+    },
+    "Sandbox is running": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "سندباکس در حال اجراست"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沙盒正在运行"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Песочница работает"
+          }
+        }
+      }
+    },
+    "Sandbox is stopped": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "سندباکس متوقف است"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沙盒已停止"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Песочница остановлена"
+          }
+        }
+      }
+    },
+    "Show Shared Folder": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "نمایش پوشهٔ Shared"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示 Shared 文件夹"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показать папку Shared"
+          }
+        }
+      }
+    },
+    "Source: %@ at %@": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "منبع: %@ در %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源：%1$@，提交 %2$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Источник: %@, коммит %@"
+          }
+        }
+      }
+    },
+    "Start": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "شروع"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запустить"
+          }
+        }
+      }
+    },
+    "Starting the sandbox…": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "در حال شروع سندباکس…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在启动沙盒…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запуск песочницы…"
+          }
+        }
+      }
+    },
+    "Stop": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "توقف"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стоп"
+          }
+        }
+      }
+    },
+    "Stopping the sandbox…": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "در حال توقف سندباکس…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在停止沙盒…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Остановка песочницы…"
+          }
+        }
+      }
+    },
+    "Templates": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "قالب‌ها"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模板"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Шаблоны"
+          }
+        }
+      }
+    },
+    "The sandbox did not answer.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "سندباکس پاسخ نداد."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沙盒没有响应。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Песочница не ответила."
+          }
+        }
+      }
+    },
+    "Unverified: sideloaded from a folder, not from the V2Mac store.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تأییدنشده: از یک پوشه نصب شده، نه از فروشگاه V2Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未验证：从文件夹旁加载，而非来自 V2Mac 商店。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не проверено: установлено из папки, а не из магазина V2Mac."
+          }
+        }
+      }
+    },
+    "Unverified: sideloaded, not from the V2Mac store": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تأییدنشده: دستی نصب شده، نه از فروشگاه V2Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未验证：旁加载，而非来自 V2Mac 商店"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не проверено: установлено вручную, не из магазина V2Mac"
+          }
+        }
+      }
+    },
+    "Update to %@": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "به‌روزرسانی به %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新到 %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновить до %@"
+          }
+        }
+      }
+    },
+    "Use the SSH keys in your Mac's ssh-agent while it is open": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "استفاده از کلیدهای SSH در ssh-agent مک تا وقتی باز است"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在其打开期间使用 Mac 的 ssh-agent 中的 SSH 密钥"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Использовать SSH-ключи из ssh-agent вашего Mac, пока оно открыто"
+          }
+        }
+      }
+    },
+    "Use the clipboard": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "استفاده از کلیپ‌بورد"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用剪贴板"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Использовать буфер обмена"
+          }
+        }
+      }
+    },
+    "V2Mac Sandbox is not running. Open the Sandbox in V2Mac, then open this app again.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "V2Mac Sandbox در حال اجرا نیست. سندباکس را در V2Mac باز کنید، سپس دوباره این برنامه را باز کنید."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "V2Mac Sandbox 未运行。请在 V2Mac 中打开沙盒，然后再次打开此应用。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "V2Mac Sandbox не запущена. Откройте песочницу в V2Mac, затем снова откройте это приложение."
+          }
+        }
+      }
+    },
+    "Verify Installation…": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بررسی نصب…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "验证安装…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить установку…"
+          }
+        }
+      }
+    },
+    "Version %@": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "نسخهٔ %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本 %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Версия %@"
+          }
+        }
+      }
+    },
+    "Window": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پنجره"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Окно"
+          }
+        }
+      }
+    },
+    "Wipe Data…": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پاک کردن داده‌ها…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除数据…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стереть данные…"
+          }
+        }
+      }
+    },
+    "Wipe all data of %@?": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "همهٔ داده‌های %@ پاک شود؟"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除 %@ 的所有数据？"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стереть все данные %@?"
+          }
+        }
+      }
+    },
+    "Withdrawn from the store: %@": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "از فروشگاه برداشته شده: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已从商店撤回：%@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отозвано из магазина: %@"
+          }
+        }
+      }
+    },
+    "Withdrawn: %@": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "برداشته شده: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已撤回：%@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отозвано: %@"
+          }
+        }
+      }
+    },
+    "none": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "هیچ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "нет"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
