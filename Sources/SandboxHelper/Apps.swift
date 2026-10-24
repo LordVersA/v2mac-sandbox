@@ -27,6 +27,10 @@ struct PluginManifest: Decodable, Equatable {
     var source: Source?
     /// The released base image it is built on (plan §7), exactly as `bases.json` lists it.
     var from: String?
+    /// The icon's filename in the plugin folder or release; `iconSvg` is its text, which the store
+    /// copies into the signed index and a sideload reads from the folder.
+    var icon: String?
+    var iconSvg: String?
 
     struct Layer: Codable, Equatable, Sendable {
         var url: URL
@@ -52,8 +56,13 @@ struct PluginManifest: Decodable, Equatable {
         do { data = try Data(contentsOf: folder.appendingPathComponent("plugin.json")) } catch { throw Invalid("The folder has no plugin.json.") }
         let manifest: PluginManifest
         do { manifest = try JSONDecoder().decode(PluginManifest.self, from: data) } catch { throw Invalid("plugin.json is not a valid plugin manifest.") }
-        try manifest.validate()
-        return manifest
+        var checked = manifest
+        if let icon = manifest.icon, !icon.contains("/"), !icon.hasPrefix("."),
+           let data = try? Data(contentsOf: folder.appendingPathComponent(icon)) {
+            checked.iconSvg = String(data: data, encoding: .utf8)
+        }
+        try checked.validate()
+        return checked
     }
 
     func validate() throws {
@@ -67,6 +76,15 @@ struct PluginManifest: Decodable, Equatable {
             guard keyOK, !value.contains(where: { $0 == "\n" || $0 == "\r" || $0 == "\0" }) else { throw Invalid("plugin.json has a bad environment variable \(key).") }
         }
         guard (permissions ?? []).allSatisfy(Self.knownPermissions.contains) else { throw Invalid("plugin.json asks for an unknown permission.") }
+        guard iconSvg.map({ $0.utf8.count <= Self.maxIcon && Self.image($0) != nil }) ?? true else { throw Invalid("\(name)'s icon is not an SVG image of at most 64 KB.") }
+    }
+
+    static let maxIcon = 64 << 10
+
+    /// An icon's SVG as an image (NSImage draws SVG without scripts or external files).
+    static func image(_ svg: String) -> NSImage? {
+        guard svg.contains("<svg"), let image = NSImage(data: Data(svg.utf8)), image.isValid else { return nil }
+        return image
     }
 
     /// A store plugin must also bring its image: https layers with a hash and a size.
@@ -99,6 +117,7 @@ struct InstalledApp: Codable, Identifiable, Equatable, Sendable {
     var image: String?
     var source: PluginManifest.Source?
     var layers: [PluginManifest.Layer] = []
+    var iconSvg: String?
 
     init(_ manifest: PluginManifest, granted: [String]) {
         id = manifest.id
@@ -107,6 +126,7 @@ struct InstalledApp: Codable, Identifiable, Equatable, Sendable {
         display = manifest.display
         cmd = manifest.launch.cmd
         env = manifest.launch.env ?? [:]
+        iconSvg = manifest.iconSvg
         self.granted = granted
     }
 
@@ -137,6 +157,7 @@ extension InstalledApp {
         image = try c.decodeIfPresent(String.self, forKey: .image)
         source = try c.decodeIfPresent(PluginManifest.Source.self, forKey: .source)
         layers = try c.decodeIfPresent([PluginManifest.Layer].self, forKey: .layers) ?? []
+        iconSvg = try c.decodeIfPresent(String.self, forKey: .iconSvg)
     }
 }
 
@@ -179,7 +200,7 @@ enum StubApps {
         for lproj in (try? fm.contentsOfDirectory(at: Bundle.main.resourceURL!, includingPropertiesForKeys: nil)) ?? [] where lproj.pathExtension == "lproj" {
             try fm.copyItem(at: lproj, to: resources.appendingPathComponent(lproj.lastPathComponent))
         }
-        try icon(name: app.name, hue: vm.hue).write(to: resources.appendingPathComponent("AppIcon.icns"))
+        try icon(name: app.name, hue: vm.hue, svg: app.iconSvg).write(to: resources.appendingPathComponent("AppIcon.icns"))
         if app.display == "pty" {
             let words = [helper.appendingPathComponent("v2mac-pty").path, socket.path, vm.id, app.id, "\(app.name) — \(vm.name)"]
             let command = resources.appendingPathComponent("launch.command")
@@ -206,9 +227,10 @@ enum StubApps {
         try? FileManager.default.removeItem(at: bundle)
     }
 
-    /// The app's initial on a rounded square in the mini VM's colour, with a shield (plan: icon tinted
-    /// in the VM's colour). shortcut: plugins have no icon of their own until store layers carry one (M5).
-    static func icon(name: String, hue: Double) throws -> Data {
+    /// The plugin's icon (else its initial) on a rounded square in the mini VM's colour, with a shield
+    /// (plan: icon tinted in the VM's colour).
+    static func icon(name: String, hue: Double, svg: String? = nil) throws -> Data {
+        let own = svg.flatMap(PluginManifest.image)
         let data = NSMutableData()
         guard let dest = CGImageDestinationCreateWithData(data, "com.apple.icns" as CFString, 6, nil) else { throw PluginManifest.Invalid("no icns writer") }
         for size in [16, 32, 64, 128, 256, 512, 1024] where size != 64 {
@@ -216,11 +238,16 @@ enum StubApps {
                 let unit = r.width / 1024
                 NSColor(hue: hue, saturation: 0.65, brightness: 0.85, alpha: 1).setFill()
                 NSBezierPath(roundedRect: r.insetBy(dx: 100 * unit, dy: 100 * unit), xRadius: 185 * unit, yRadius: 185 * unit).fill()
-                let letter = String(name.prefix(1)).uppercased() as NSString
-                let font = NSFont.systemFont(ofSize: 520 * unit, weight: .bold)
-                let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
-                let box = letter.size(withAttributes: attributes)
-                letter.draw(at: NSPoint(x: (r.width - box.width) / 2, y: (r.height - box.height) / 2 + 20 * unit), withAttributes: attributes)
+                if let own {
+                    // Inset so the mini VM's colour stays visible as a frame around it.
+                    own.draw(in: r.insetBy(dx: 170 * unit, dy: 170 * unit))
+                } else {
+                    let letter = String(name.prefix(1)).uppercased() as NSString
+                    let font = NSFont.systemFont(ofSize: 520 * unit, weight: .bold)
+                    let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
+                    let box = letter.size(withAttributes: attributes)
+                    letter.draw(at: NSPoint(x: (r.width - box.width) / 2, y: (r.height - box.height) / 2 + 20 * unit), withAttributes: attributes)
+                }
                 if let shield = NSImage(systemSymbolName: "checkmark.shield.fill", accessibilityDescription: nil)?
                     .withSymbolConfiguration(.init(pointSize: 200 * unit, weight: .bold).applying(.init(paletteColors: [.white, .systemGreen]))) {
                     shield.draw(in: NSRect(x: r.width - 330 * unit, y: 130 * unit, width: 200 * unit, height: 230 * unit))

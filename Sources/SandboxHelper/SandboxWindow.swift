@@ -361,11 +361,10 @@ private struct VMDetail<Actions: View>: View {
             NSWorkspace.shared.open(StubApps.url(app, in: vm))
         } label: {
             VStack(spacing: 6) {
-                Image(systemName: app.display == "gui" ? "macwindow" : "apple.terminal")
-                    .font(.system(size: 26))
+                // The generated Mac app's own icon: the plugin's, tinted in the mini VM's colour.
+                Image(nsImage: NSWorkspace.shared.icon(forFile: StubApps.url(app, in: vm).path))
+                    .resizable()
                     .frame(width: 52, height: 52)
-                    .background(Color(hue: vm.hue, saturation: 0.25, brightness: 0.95).opacity(0.35).gradient,
-                                in: .rect(cornerRadius: 12, style: .continuous))
                     .overlay(alignment: .topTrailing) {
                         if revoked != nil {
                             badge("exclamationmark.octagon.fill", .red)

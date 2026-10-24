@@ -313,7 +313,9 @@ throwaway key: template "Terminal VM" installs `hello-pty` from its image and ex
 the wrong hash, a tampered index, an expired index and an older index (rollback) are each refused. Open: a "layer"
 is a whole `docker/podman save` archive (cached by hash, so unchanged ones aren't fetched again, but not real OCI
 layer dedup); the helper doesn't check `from` yet (base images come in M6); plugins with a newer `api` are hidden,
-not shown with "Update V2Mac"; no icon from the store.
+not shown with "Update V2Mac". Icons (2026-10-24): the store's CI copies a plugin's `icon` SVG into the signed index
+(`iconSvg`, ≤ 64 KB, no scripts or external references); a sideload reads it from its folder. The store window shows it, and
+the Mac app's `.icns` draws it framed in the mini VM's colour with the shield (else the app's initial).
 
 ### M6 — SDK
 1. Base images released from `sandbox`. 2. `plugin-template` with CI, samples built from it.

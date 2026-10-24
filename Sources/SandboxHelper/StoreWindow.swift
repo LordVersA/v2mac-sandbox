@@ -93,15 +93,22 @@ struct StoreWindow: View {
     }
 }
 
-/// An app's mark until store layers carry icons. shortcut: plugin icons aren't fetched yet; draw them
-/// from the index once the API carries an icon URL.
+/// An app's icon from the signed index, else a mark from its id.
 struct PluginIcon: View {
     let plugin: PluginManifest
     let size: CGFloat
 
     var body: some View {
+        if let image = plugin.iconSvg.flatMap(PluginManifest.image) {
+            Image(nsImage: image).resizable().frame(width: size, height: size).accessibilityHidden(true)
+        } else {
+            mark
+        }
+    }
+
+    private var mark: some View {
         let hue = Double(plugin.id.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xffff } % 360) / 360
-        RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
+        return RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
             .fill(Color(hue: hue, saturation: 0.55, brightness: 0.85).gradient)
             .frame(width: size, height: size)
             .overlay {

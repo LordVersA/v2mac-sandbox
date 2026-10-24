@@ -28,6 +28,19 @@ import V2MacCore
         }
     }
 
+    @Test func takesAnSVGIconAndRefusesAnythingElse() throws {
+        let svg = #"<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8'><rect width='8' height='8' fill='red'/></svg>"#
+        var manifest = try decode(Self.good)
+        manifest.iconSvg = svg
+        try manifest.validate()
+        #expect(InstalledApp(manifest, granted: []).iconSvg == svg)
+        #expect(try StubApps.icon(name: "Hello", hue: 0.5, svg: svg).count > 0)
+        for bad in ["not an image", "<svg" + String(repeating: " ", count: PluginManifest.maxIcon) + "/>"] {
+            manifest.iconSvg = bad
+            #expect(throws: PluginManifest.Invalid.self) { try manifest.validate() }
+        }
+    }
+
     @Test func quotesForTheLaunchCommand() {
         #expect(StubApps.quote("it's a/b") == #"'it'\''s a/b'"#)
     }
