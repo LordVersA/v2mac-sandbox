@@ -61,7 +61,7 @@ enum Store {
         return decoded
     }
 
-    /// The base images released with this sandbox (`Scripts/build-images.sh`, bundled as bases.json).
+    /// The base released with this sandbox: its own root (`Scripts/build-base.sh`, bundled as bases.json).
     static let bases: Set<String> = {
         guard let url = Bundle.main.url(forResource: "bases", withExtension: "json"), let data = try? Data(contentsOf: url),
               let list = try? JSONDecoder().decode([String: [String]].self, from: data) else { return [] }

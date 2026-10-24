@@ -15,4 +15,3 @@ out/
 .build/
 .build-linux/
 .swiftpm/
-images/base-gui/sway.conf

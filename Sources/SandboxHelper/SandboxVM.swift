@@ -45,7 +45,7 @@ import Virtualization
         }
     }
 
-    private nonisolated static func readMessage(_ fd: Int32, timeoutMS: Int32) -> AgentMessage? {
+    nonisolated static func readMessage(_ fd: Int32, timeoutMS: Int32) -> AgentMessage? {
         var reader = AgentMessage.Reader()
         var buf = [UInt8](repeating: 0, count: 16384)
         var poller = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
@@ -109,7 +109,9 @@ import Virtualization
     private func configuration(ramCapMB: Int) throws -> VZVirtualMachineConfiguration {
         let resources = Bundle.main.resourceURL!
         let boot = VZLinuxBootLoader(kernelURL: resources.appendingPathComponent("Image"))
+        // Eight loopback sound cards, one per open window app with sound (rootfs sandbox.sh gui).
         boot.commandLine = "console=hvc0 root=/dev/vda rootfstype=erofs ro init=/sbin/overlay-init quiet"
+            + " snd_aloop.enable=1,1,1,1,1,1,1,1 snd_aloop.pcm_substreams=1,1,1,1,1,1,1,1"
         let config = VZVirtualMachineConfiguration()
         config.bootLoader = boot
         config.cpuCount = max(2, ProcessInfo.processInfo.activeProcessorCount / 2)
@@ -132,12 +134,7 @@ import Virtualization
         let fs = VZVirtioFileSystemDeviceConfiguration(tag: "shared")
         fs.share = share
         config.directorySharingDevices = [fs]
-        // Output only: the VM gets no microphone.
-        let speaker = VZVirtioSoundDeviceOutputStreamConfiguration()
-        speaker.sink = VZHostAudioOutputStreamSink()
-        let sound = VZVirtioSoundDeviceConfiguration()
-        sound.streams = [speaker]
-        config.audioDevices = [sound]
+        // No sound device: each app's sound comes over vsock, asked at use (PtyServer, MacAudio).
         try config.validate()
         return config
     }

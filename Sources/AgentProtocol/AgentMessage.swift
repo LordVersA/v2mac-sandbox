@@ -20,7 +20,6 @@ public enum AgentMessage: Equatable, Sendable {
     /// Helper → agent, first frame on a window connection (port `guiPort`): `sandbox.sh gui` with these
     /// words, then the client side of RFB (checked by `RFBClientFilter`) and wayvnc's answers.
     case gui([String])
-
     /// The only files `put` may write: the in-VM xray config, the gateway's nftables rules, and a
     /// plugin's launch command (`plugin-<vm>-<app>.argv`, NUL-separated) and environment (`.env`), per mini VM.
     public static let files: Set<String> = ["xray.json", "gateway.nft"]
@@ -37,8 +36,9 @@ public enum AgentMessage: Equatable, Sendable {
     public static let port: UInt32 = 1024
     public static let ptyPort: UInt32 = 1026
     public static let guiPort: UInt32 = 1028
-    /// The guest connects here for the Mac's ssh-agent, only while an approved pty app is open.
-    public static let sshAgentPort: UInt32 = 1027
+    /// Ports the helper opens for one open app's ssh-agent, sound or microphone, so a connection
+    /// names the app the user is asked about.
+    public static let sessionPorts: ClosedRange<UInt32> = 0x10000...0x1ffff
     public static let maxFrame = 64 * 1024
 
     public var frame: [UInt8] {

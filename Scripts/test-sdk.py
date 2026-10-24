@@ -63,11 +63,13 @@ def link():
                 request=message['download']; path=cache/request['sha256']
                 if not path.exists():
                     layer=downloads[request['sha256']]
-                    tag,filename=layer['url'].split('/releases/download/',1)[1].split('/',1)
+                    filename=layer['url'].rsplit('/',1)[1]
                     archive=cache/filename
                     # A copy already in dist (checked below like a download) skips the slow fetch.
                     if (local:=workspace/'plugin-template/dist'/filename).exists(): subprocess.run(['cp','-c',str(local),str(archive)],check=True)
-                    else: subprocess.run(['gh','release','download',tag,'--repo',layer['repo'],'--pattern',filename,'--dir',str(cache),'--clobber'],check=True)
+                    else:
+                        tag=layer['url'].split('/releases/download/',1)[1].split('/',1)[0]
+                        subprocess.run(['gh','release','download',tag,'--repo',layer['repo'],'--pattern',filename,'--dir',str(cache),'--clobber'],check=True)
                     digest=hashlib.sha256()
                     with archive.open('rb') as f:
                         while chunk:=f.read(1<<20): digest.update(chunk)

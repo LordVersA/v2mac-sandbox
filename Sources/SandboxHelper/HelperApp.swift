@@ -136,7 +136,7 @@ import V2MacCore
             let window = NSWindow(contentViewController: host)
             window.styleMask.insert(.fullSizeContentView)
             window.setContentSize(NSSize(width: 820, height: 560))
-            window.title = "V2Mac Sandbox"
+            window.title = String(localized: "V2Mac Sandbox (beta)")
             window.delegate = self
             window.isReleasedWhenClosed = false
             self.window = window
@@ -210,6 +210,24 @@ import V2MacCore
         Task {
             do { try await gateway.install(store: plugin, granted: approved, in: vm, download: download) }
             catch { NSAlert(error: error).runModal() }
+        }
+    }
+
+    /// A Debian package (plan §10): the permissions its apps get, approved once, then apt in the VM.
+    func install(package name: String, in vm: MiniVM) {
+        guard let granted = SandboxWindow.approve(name, asks: ["clipboard", "shared", "sound", "microphone"], into: vm.name,
+                                                  note: String(localized: "It comes from Debian's archive and is not reviewed by V2Mac.")) else { return }
+        Task {
+            do {
+                if try await gateway.install(package: name, granted: granted, in: vm).isEmpty {
+                    let alert = NSAlert()
+                    alert.messageText = String(localized: "\(name) is installed")
+                    alert.informativeText = String(localized: "It has no window app. Use it in the Terminal of any mini VM.")
+                    alert.runModal()
+                }
+            } catch {
+                NSAlert(error: error).runModal()
+            }
         }
     }
 

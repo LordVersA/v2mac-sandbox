@@ -8,6 +8,6 @@ rm -f out/V2MacSandbox.zip
 ditto -c -k --keepParent "out/V2Mac Sandbox.app" out/V2MacSandbox.zip
 sum() { shasum -a 256 "$1" | cut -d' ' -f1; }
 cat > out/pin.json <<JSON
-{"url": "$1", "sha256": "$(sum out/V2MacSandbox.zip)", "executableSHA256": "$(sum "out/V2Mac Sandbox.app/Contents/MacOS/V2Mac Sandbox")", "size": $(stat -f%z out/V2MacSandbox.zip)}
+{"url": "$1", "sha256": "$(sum out/V2MacSandbox.zip)", "executableSHA256": "$(sum "out/V2Mac Sandbox.app/Contents/MacOS/V2Mac Sandbox")", "size": $(stat -f%z out/V2MacSandbox.zip), "version": "$(plutil -extract CFBundleShortVersionString raw "out/V2Mac Sandbox.app/Contents/Info.plist")"}
 JSON
 cat out/pin.json

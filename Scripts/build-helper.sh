@@ -19,7 +19,7 @@ cp out/Image out/rootfs.erofs Resources/AppIcon.icns "$APP/Contents/Resources/"
 xcrun xcstringstool compile Resources/Localizable.xcstrings --output-directory "$APP/Contents/Resources"
 # Without an en.lproj, macOS picks the next language in the user's list (fa for en-US, fa) over English.
 mkdir -p "$APP/Contents/Resources/en.lproj"
-# The base images plugins may be built on (Scripts/build-images.sh); none means no store plugin installs.
+# The base plugins may be built on (Scripts/build-base.sh); none means no store plugin installs.
 [ -f out/images/bases.json ] && cp out/images/bases.json "$APP/Contents/Resources/"
 codesign --force --sign - --entitlements Resources/V2MacSandbox.entitlements --options runtime "$APP"
 codesign --verify --strict "$APP" && echo "built $APP"

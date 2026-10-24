@@ -18,7 +18,7 @@ struct SandboxWindow: View {
         } detail: {
             detail
         }
-        .navigationTitle("V2Mac Sandbox")
+        .navigationTitle("V2Mac Sandbox (beta)")
         .navigationSubtitle(subtitle)
         .toolbar {
             ToolbarItem(placement: .primaryAction) { power }
@@ -192,9 +192,18 @@ struct SandboxWindow: View {
     }
 
     static let permissionText = [
-        "ssh-agent": String(localized: "Use the SSH keys in your Mac's ssh-agent while it is open"),
+        "ssh-agent": String(localized: "Use the SSH keys in your Mac's ssh-agent, after asking you"),
         "clipboard": String(localized: "Use the clipboard"),
         "shared": String(localized: "Read and write this mini VM's Shared folder"),
+        "sound": String(localized: "Play sound, after asking you"),
+        "microphone": String(localized: "Use the microphone, after asking you"),
+    ]
+
+    /// Short names for the asked permissions (`PluginManifest.askedPermissions`) in an app's menu.
+    static let permissionName = [
+        "sound": String(localized: "Sound"),
+        "microphone": String(localized: "Microphone"),
+        "ssh-agent": String(localized: "SSH Keys"),
     ]
 }
 
@@ -379,6 +388,7 @@ private struct VMDetail<Actions: View>: View {
         }
         .buttonStyle(.plain)
         .help(revoked.map { String(localized: "Withdrawn from the store: \($0.reason)") }
+            ?? app.package.map { String(localized: "From Debian's package \($0), not reviewed by V2Mac") }
             ?? (app.unverified ? String(localized: "Unverified: sideloaded, not from the V2Mac store") : String(localized: "Open \(app.name)")))
         // The update badge is its own button outside the tile's, so a click on it updates instead of opening.
         .overlay(alignment: .top) {
@@ -393,6 +403,19 @@ private struct VMDetail<Actions: View>: View {
             Button("Open", systemImage: "arrow.up.forward.app") { NSWorkspace.shared.open(StubApps.url(app, in: vm)) }
             if let newer { Button("Update to \(newer.version)", systemImage: "arrow.down.circle") { model.install(newer, in: vm, keeping: app.granted) } }
             Button("Verify Installation…", systemImage: "checkmark.seal") { verify(app) }
+            let asked = PluginManifest.askedPermissions.filter(app.allows)
+            if !asked.isEmpty {
+                Menu("Permissions", systemImage: "hand.raised") {
+                    ForEach(asked, id: \.self) { permission in
+                        Picker(SandboxWindow.permissionName[permission, default: permission],
+                               selection: Binding(get: { app.answers[permission] }, set: { gateway.setAnswer(app, in: vm, permission, $0) })) {
+                            Text("Ask").tag(Bool?.none)
+                            Text("Always Allow").tag(Bool?.some(true))
+                            Text("Don't Allow").tag(Bool?.some(false))
+                        }
+                    }
+                }
+            }
             Divider()
             Button("Remove \(app.name)", systemImage: "trash", role: .destructive) { gateway.uninstall(app, from: vm) }
         }
@@ -450,7 +473,9 @@ private struct VMDetail<Actions: View>: View {
     private func verify(_ app: InstalledApp) {
         let granted = app.granted.isEmpty ? String(localized: "none") : app.granted.joined(separator: ", ")
         var lines = [String(localized: "Version \(app.version)"), String(localized: "Permissions: \(granted)")]
-        if app.unverified {
+        if let package = app.package {
+            lines.append(String(localized: "From Debian's package \(package), signed by Debian and not reviewed by V2Mac."))
+        } else if app.unverified {
             lines.append(String(localized: "Unverified: sideloaded from a folder, not from the V2Mac store."))
         } else {
             if let source = app.source { lines.append(String(localized: "Source: \(source.repo) at \(source.commit)")) }

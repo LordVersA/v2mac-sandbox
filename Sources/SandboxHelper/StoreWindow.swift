@@ -3,11 +3,17 @@ import SwiftUI
 import V2MacCore
 
 /// The V2Mac Store (plan §7): the signed index's apps with search, and one app's details, installing
-/// into the mini VM picked in the toolbar.
+/// into the mini VM picked in the toolbar. Its Debian side searches and installs any Debian package (plan §10).
 struct StoreWindow: View {
     let model: WindowModel
     @State private var search = ""
     @State private var selection: String?
+    @State private var debian = false
+    @State private var packages: [Gateway.Package] = []
+    @State private var searching = false
+    @State private var searchProblem: String?
+    /// The text the shown packages were found for; until a search ran, "No Results" would be wrong.
+    @State private var searched: String?
 
     private var store: StoreClient { model.store }
     private var gateway: Gateway { model.gateway }
@@ -25,23 +31,61 @@ struct StoreWindow: View {
 
     private var selected: PluginManifest? { plugins.first { $0.id == selection } ?? plugins.first }
 
+    private var selectedPackage: Gateway.Package? { packages.first { $0.name == selection } ?? packages.first }
+
     var body: some View {
         NavigationSplitView {
-            List(selection: Binding(get: { selected?.id }, set: { selection = $0 })) {
-                ForEach(plugins, id: \.id) { plugin in
-                    StoreRow(plugin: plugin, installed: target?.apps.contains { $0.id == plugin.id } == true).tag(plugin.id)
+            Group {
+                if debian {
+                    List(packages, selection: Binding(get: { selectedPackage?.name }, set: { selection = $0 })) { package in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(package.name).fontWeight(.medium).lineLimit(1)
+                            Text(package.summary).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        .padding(.vertical, 3)
+                        .tag(package.name)
+                    }
+                    .overlay { packageOverlay }
+                } else {
+                    List(selection: Binding(get: { selected?.id }, set: { selection = $0 })) {
+                        ForEach(plugins, id: \.id) { plugin in
+                            StoreRow(plugin: plugin, installed: target?.apps.contains { $0.id == plugin.id } == true).tag(plugin.id)
+                        }
+                    }
+                    .overlay { listOverlay }
                 }
             }
-            .overlay { listOverlay }
+            .safeAreaInset(edge: .top) {
+                Picker("Source", selection: $debian) {
+                    Text("V2Mac Store").tag(false)
+                    Text("Debian").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 10)
+            }
             .navigationSplitViewColumnWidth(min: 250, ideal: 290, max: 380)
         } detail: {
-            if let plugin = selected {
+            if debian {
+                if let package = selectedPackage {
+                    PackageDetail(package: package, model: model, target: target).id(package.name)
+                } else {
+                    ContentUnavailableView("No Package Selected", systemImage: "shippingbox")
+                }
+            } else if let plugin = selected {
                 StoreDetail(plugin: plugin, model: model, target: target).id(plugin.id)
             } else {
                 ContentUnavailableView("No App Selected", systemImage: "square.grid.2x2")
             }
         }
-        .searchable(text: $search, placement: .sidebar, prompt: Text("Search apps"))
+        .searchable(text: $search, placement: .sidebar, prompt: debian ? Text("Search Debian packages") : Text("Search apps"))
+        // Return in the sidebar's search field doesn't reach onSubmit in this window: search after a pause in typing.
+        .task(id: debian ? search : nil) {
+            guard debian else { return }
+            try? await Task.sleep(for: .milliseconds(600))
+            if !Task.isCancelled { await searchPackages() }
+        }
+        .onChange(of: debian) { selection = nil }
         .navigationTitle("V2Mac Store")
         .navigationSubtitle(target.map { String(localized: "Installs into \($0.name)") } ?? String(localized: "No mini VM yet"))
         .toolbar {
@@ -76,6 +120,44 @@ struct StoreWindow: View {
             }
         }
         .frame(minWidth: 720, minHeight: 460)
+    }
+
+    /// Debian has tens of thousands of packages: searched in the VM, through the target's exit.
+    private func searchPackages() async {
+        let text = search
+        guard let target, !text.trimmingCharacters(in: .whitespaces).isEmpty, text != searched else { return }
+        searching = true
+        defer { searching = false }
+        do {
+            let found = try await gateway.searchPackages(text, in: target)
+            guard text == search else { return } // typed on meanwhile; the newer search shows
+            packages = found
+            searchProblem = nil
+            searched = text
+        } catch {
+            packages = []
+            searchProblem = error.localizedDescription // not `searched`: the same text tries again
+        }
+    }
+
+    @ViewBuilder private var packageOverlay: some View {
+        if searching {
+            VStack(spacing: 6) {
+                ProgressView("Searching Debian…")
+                Text("The first search of the day downloads Debian's package list, which can take a few minutes.")
+                    .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+            .padding()
+        } else if let searchProblem {
+            ContentUnavailableView("Debian Unavailable", systemImage: "wifi.exclamationmark", description: Text(searchProblem))
+        } else if packages.isEmpty {
+            if search.isEmpty || searched != search {
+                ContentUnavailableView("Debian Packages", systemImage: "shippingbox",
+                                       description: Text("Type a name or a word. Any program from Debian's archive can be installed."))
+            } else {
+                ContentUnavailableView.search(text: search)
+            }
+        }
     }
 
     @ViewBuilder private var listOverlay: some View {
@@ -186,7 +268,7 @@ private struct StoreDetail: View {
         }
     }
 
-    private static let permissionIcon = ["clipboard": "doc.on.clipboard", "shared": "folder", "ssh-agent": "key"]
+    private static let permissionIcon = ["clipboard": "doc.on.clipboard", "shared": "folder", "ssh-agent": "key", "sound": "speaker.wave.2", "microphone": "mic"]
 
     private var header: some View {
         HStack(alignment: .center, spacing: 20) {
@@ -278,6 +360,69 @@ private struct StoreDetail: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
                 .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 14, style: .continuous))
+        }
+    }
+}
+
+/// A Debian package and its Install button. Its apps run in the mini VM like store apps, but nobody at
+/// V2Mac reviewed them: only Debian's signature stands behind them.
+private struct PackageDetail: View {
+    let package: Gateway.Package
+    let model: WindowModel
+    let target: MiniVM?
+
+    private var gateway: Gateway { model.gateway }
+    private var installed: [InstalledApp] { target?.apps.filter { $0.package == package.name } ?? [] }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(alignment: .center, spacing: 20) {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous).fill(.quaternary)
+                        .frame(width: 96, height: 96)
+                        .overlay { Image(systemName: "shippingbox").font(.system(size: 40)).foregroundStyle(.secondary) }
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(package.name).font(.largeTitle.weight(.bold)).lineLimit(2).minimumScaleFactor(0.7).textSelection(.enabled)
+                        Label("From Debian, not reviewed by V2Mac", systemImage: "exclamationmark.shield")
+                            .font(.callout.weight(.medium)).foregroundStyle(.orange)
+                            .padding(.horizontal, 9).padding(.vertical, 4)
+                            .background(.orange.opacity(0.14), in: .capsule)
+                    }
+                    .layoutPriority(1)
+                    Spacer(minLength: 16)
+                    action
+                }
+                Text(package.summary).font(.title3)
+                Text("Debian signs the package and checks it on download. It runs inside the mini VM and reaches the internet only through its exit, like every app here, but V2Mac hasn't checked what it does. Window apps it brings appear in the mini VM; command-line tools are in its Terminal.")
+                    .foregroundStyle(.secondary)
+            }
+            .padding(32)
+            .frame(maxWidth: 720)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    @ViewBuilder private var action: some View {
+        if let target, gateway.installs[Gateway.installKey(target, "deb-" + package.name)] != nil {
+            VStack(alignment: .leading, spacing: 4) {
+                ProgressView().progressViewStyle(.linear)
+                Text("Installing in \(target.name)…").font(.caption).foregroundStyle(.secondary)
+            }
+            .frame(minWidth: 120, maxWidth: 220)
+        } else if let target, let app = installed.first {
+            Button("Open") { NSWorkspace.shared.open(StubApps.url(app, in: target)) }.buttonStyle(.glassProminent).controlSize(.large)
+        } else {
+            VStack(alignment: .trailing, spacing: 6) {
+                Button("Install") { if let target { model.install(package: package.name, in: target) } }
+                    .buttonStyle(.glassProminent).controlSize(.large)
+                    .disabled(target == nil || model.state != .running || !gateway.ready)
+                if target == nil {
+                    Text("Make a mini VM first.").font(.caption).foregroundStyle(.secondary)
+                } else if model.state != .running {
+                    Text("Start the sandbox to install.").font(.caption).foregroundStyle(.secondary)
+                }
+            }
         }
     }
 }

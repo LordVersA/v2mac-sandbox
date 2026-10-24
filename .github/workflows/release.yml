@@ -1,30 +1,29 @@
-# Push a tag vX.Y.Z: builds agent, kernel and rootfs on arm64 Linux, the base images (pushed to GHCR;
-# their digests become the helper's bases.json), then the helper on macOS, and publishes
-# V2MacSandbox.zip with pin.json. The V2Mac release that follows pins that pin.json.
+# Push a tag vX.Y.Z: builds agent, kernel and rootfs on arm64 Linux, the base plugins build on (that
+# rootfs as an image, pushed to GHCR; its digest becomes the helper's bases.json), then the helper on
+# macOS, and publishes V2MacSandbox.zip with pin.json. The V2Mac release that follows pins that pin.json.
 name: Release
 on:
   push: { tags: ["v*"] }
 permissions: { contents: write, packages: write }
 jobs:
   bases:
+    needs: image
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-      - run: Scripts/build-images.sh
-      - name: Push to GHCR and list the digests plugins may build FROM
+      - uses: actions/download-artifact@v4
+        with: { name: image, path: out }
+      - run: Scripts/build-base.sh
+      - name: Push to GHCR and list the digest plugins may build FROM
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          list=""
-          for n in base base-cli base-gui; do
-            repo=ghcr.io/lordversa/v2mac-$n
-            ref=$repo:${{ github.ref_name }}
-            docker tag v2mac/$n "$ref" && docker push "$ref"
-            # The image also has local RepoDigests; select the one just pushed to GHCR.
-            digest=$(docker image inspect --format '{{json .RepoDigests}}' "$ref" | python3 -c 'import json,sys; print(next(d for d in json.load(sys.stdin) if d.startswith(sys.argv[1]+"@sha256:")))' "$repo")
-            list="$list${list:+,}\"$digest\""
-          done
-          printf '{"allowed": [%s]}\n' "$list" > out/images/bases.json
+          repo=ghcr.io/lordversa/v2mac-base
+          ref=$repo:${{ github.ref_name }}
+          docker tag v2mac/base "$ref" && docker push "$ref"
+          # The image also has local RepoDigests; select the one just pushed to GHCR.
+          digest=$(docker image inspect --format '{{json .RepoDigests}}' "$ref" | python3 -c 'import json,sys; print(next(d for d in json.load(sys.stdin) if d.startswith(sys.argv[1]+"@sha256:")))' "$repo")
+          printf '{"allowed": ["%s"]}\n' "$digest" > out/images/bases.json
           cat out/images/bases.json
       - uses: actions/upload-artifact@v4
         with: { name: bases, path: out/images/bases.json }

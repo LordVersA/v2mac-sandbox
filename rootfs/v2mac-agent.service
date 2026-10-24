@@ -3,6 +3,8 @@ Description=V2Mac VM agent
 After=v2mac-data.service
 [Service]
 ExecStart=/usr/local/bin/v2mac-agent
+# Also in the helper's vm.log (the VM console).
+StandardOutput=journal+console
 Restart=always
 [Install]
 WantedBy=multi-user.target

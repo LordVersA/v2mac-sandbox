@@ -46,6 +46,31 @@ import V2MacCore
     }
 }
 
+@Suite struct PackageAppTests {
+    @Test func makesAnAppFromADesktopEntryLine() throws {
+        let app = try #require(InstalledApp(package: "gimp", line: "app\tgui\torg.gimp.GIMP.desktop\tGIMP\tgimp-3.0 %U --x=100%%", granted: ["shared"]))
+        #expect(app.id == "deb-org.gimp.GIMP")
+        #expect(app.display == "gui" && app.image == InstalledApp.packagesImage && app.package == "gimp" && app.granted == ["shared"])
+        #expect(app.cmd.first == "/bin/sh" && app.cmd.last?.hasSuffix("; exec gimp-3.0  --x=100%") == true)
+        let tool = try #require(InstalledApp(package: "htop", line: "app\tpty\thtop.desktop\tHtop\thtop", granted: []))
+        #expect(tool.cmd == ["/bin/sh", "-c", "exec htop"] && tool.id == "deb-htop")
+        // An id sandbox.sh can't take is made safe; broken lines are dropped.
+        #expect(InstalledApp(package: "x", line: "app\tgui\ta b;c.desktop\tX\tx", granted: [])?.id == "deb-a-b-c")
+        for line in ["app\tweb\tx.desktop\tX\tx", "app\tgui\tx.desktop\t\tx", "app\tgui\tx.desktop\tX", "busy"] {
+            #expect(InstalledApp(package: "x", line: Substring(line), granted: []) == nil)
+        }
+    }
+}
+
+@Suite struct PackageRankTests {
+    @Test func putsTheProgramBeforeItsPartsAndNamesBeforeSummaries() {
+        let names = ["activity-aware-firefox", "firefox-esr-l10n-af", "libfirefox-dev", "webext-debianbuttons", "firefox-esr", "firefox"]
+        let found = names.map { Gateway.Package(name: $0, summary: "") }
+        #expect(Gateway.Package.ranked(found, for: ["firefox"]).map(\.name)
+            == ["firefox", "firefox-esr", "activity-aware-firefox", "webext-debianbuttons", "firefox-esr-l10n-af", "libfirefox-dev"])
+    }
+}
+
 @Suite struct ExitFactsTests {
     let tab = "# comment\nDE\t+5230+01322\tEurope/Berlin\tmost of Germany\nDE\t+4742+00841\tEurope/Busingen\tBusingen\nIR\t+3540+05126\tAsia/Tehran\n"
 

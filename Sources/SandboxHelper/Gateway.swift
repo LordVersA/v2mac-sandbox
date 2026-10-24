@@ -135,7 +135,8 @@ import V2MacCore
         updateShares()
         guard let corePath, let device = vm.socketDevice else { return log("no core path or vsock device yet") }
         if !booted {
-            guard await run(["boot"]).ok else { return }
+            // The guest has no clock of its own; without this it runs months behind (tar warnings, TLS failures).
+            guard await run(["boot", String(Int(Date().timeIntervalSince1970))]).ok else { return }
             booted = true
         }
         var outbounds: [String: JSONValue] = [:]
@@ -209,6 +210,7 @@ import V2MacCore
             guard await self.run(["vm-del", String(mini.index), mini.id]).ok else { return }
             mini.apps.forEach { StubApps.remove($0, in: mini) }
             self.vms.removeAll { $0.id == mini.id }
+            mini.apps.compactMap(\.image).forEach(self.removeIfUnused)
             self.inGuest.remove(mini.id)
             self.exits[mini.id] = nil
             self.save()
@@ -256,7 +258,23 @@ import V2MacCore
         guard let current = vms.first(where: { $0.id == mini.id }) else { return }
         let app = InstalledApp(manifest, granted: granted)
         try StubApps.make(app, in: current, socket: ptySocket)
-        update(mini.id) { vm in vm.apps.removeAll { $0.id == app.id }; vm.apps.append(app) }
+        put(app, in: mini.id)
+    }
+
+    /// Adds or replaces an app; an update keeps the answers for permissions it still has.
+    private func put(_ app: InstalledApp, in id: String) {
+        update(id) { vm in
+            var app = app
+            app.answers = (vm.apps.first { $0.id == app.id }?.answers ?? [:]).filter { app.granted.contains($0.key) }
+            vm.apps.removeAll { $0.id == app.id }
+            vm.apps.append(app)
+        }
+    }
+
+    func setAnswer(_ app: InstalledApp, in mini: MiniVM, _ permission: String, _ answer: Bool?) {
+        update(mini.id) { vm in
+            if let i = vm.apps.firstIndex(where: { $0.id == app.id }) { vm.apps[i].answers[permission] = answer }
+        }
     }
 
     /// A store install in progress, by `installKey`: `fraction` while downloading, nil while loading.
@@ -297,11 +315,12 @@ import V2MacCore
             installs[key]?.fraction = nil
             // Unpacking a browser in the VM takes minutes, past the usual answer time.
             let loaded = await enqueueResult { await self.run(["load", layer.sha256], timeoutMS: 1_800_000) }.value
-            guard loaded.ok, let id = loaded.output.split(separator: "\n").last.map(String.init), AgentMessage.isWord(id) else {
-                log("load \(layer.sha256): \(loaded.ok ? "unexpected answer" : "failed"): \(loaded.output.suffix(2000))")
+            // The exit status decides: tar warnings can fill the capped output and push out the echoed id.
+            guard loaded.ok else {
+                log("load \(layer.sha256) failed: \(loaded.output.suffix(2000))")
                 throw PluginManifest.Invalid("\(manifest.name) could not be loaded in the sandbox.")
             }
-            image = id
+            image = layer.sha256
         }
         guard let current = vms.first(where: { $0.id == mini.id }) else { return }
         var app = InstalledApp(manifest, granted: granted)
@@ -311,15 +330,79 @@ import V2MacCore
         app.layers = manifest.layers ?? []
         try StubApps.make(app, in: current, socket: ptySocket)
         let old = current.apps.first { $0.id == app.id }?.image
-        update(mini.id) { vm in vm.apps.removeAll { $0.id == app.id }; vm.apps.append(app) }
-        if let old, old != image { enqueue { _ = await self.run(["rmi", old]) } }
+        put(app, in: mini.id)
+        if let old, old != image { removeIfUnused(old) }
+    }
+
+    /// A Debian package (Linux Packages, plan §10) found by `pkg-search`.
+    struct Package: Identifiable, Hashable {
+        var name: String
+        var summary: String
+        var id: String { name }
+
+        /// apt lists matches alphabetically, so `firefox` shows a hundred language packs before Firefox. Best first:
+        /// a name equal to a word, starting with one, containing one, then summary-only matches; parts of other
+        /// programs (language packs, libraries, -dev, -doc…) after those; shorter names first.
+        static func ranked(_ packages: [Package], for words: [String]) -> [Package] {
+            func score(_ p: Package) -> (Int, Int, String) {
+                let match = words.contains(p.name) ? 0 : words.contains { p.name.hasPrefix($0) } ? 1 : words.contains { p.name.contains($0) } ? 2 : 3
+                let part = p.name.hasPrefix("lib") || ["-l10n-", "-i18n"].contains { p.name.contains($0) }
+                    || ["-dev", "-doc", "-dbg", "-dbgsym", "-data", "-common"].contains { p.name.hasSuffix($0) }
+                return ((part ? 10 : 0) + match, p.name.count, p.name)
+            }
+            return packages.sorted { score($0) < score($1) }
+        }
+    }
+
+    /// Debian packages matching every word, through `mini`'s exit; words sandbox.sh can't take are left out.
+    func searchPackages(_ text: String, in mini: MiniVM) async throws -> [Package] {
+        let words = text.lowercased().split(separator: " ").map(String.init).filter { AgentMessage.isWord($0) && !$0.hasPrefix("-") }
+        guard !words.isEmpty else { return [] }
+        // The first search of the day downloads Debian's package lists through the exit.
+        let result = await enqueueResult { await self.run(["pkg-search", String(mini.index), mini.id] + words, timeoutMS: 900_000) }.value
+        guard result.ok else { throw PluginManifest.Invalid("Debian's package list can't be reached through \(mini.name)'s exit.\n\(result.output.suffix(400))") }
+        let found = result.output.split(separator: "\n").compactMap { line -> Package? in
+            guard let dash = line.range(of: " - "), case let name = String(line[..<dash.lowerBound]), AgentMessage.isWord(name) else { return nil }
+            return Package(name: name, summary: String(line[dash.upperBound...]))
+        }
+        if found.isEmpty, !result.output.isEmpty { log("pkg-search \(words.joined(separator: " ")): nothing found: \(result.output.suffix(1000))") }
+        return Array(Package.ranked(found, for: words).prefix(60))
+    }
+
+    /// Installs a Debian package into the shared package root through `mini`'s exit and adds the window
+    /// and terminal apps it brings to `mini`; none means it is for the mini VM's Terminal.
+    @discardableResult func install(package name: String, granted: [String], in mini: MiniVM) async throws -> [InstalledApp] {
+        let key = Self.installKey(mini, "deb-" + name)
+        guard installs[key] == nil else { return [] }
+        installs[key] = Install(name: name, fraction: nil)
+        defer { installs[key] = nil }
+        // apt downloads and unpacks a whole program with its libraries: minutes.
+        let result = await enqueueResult { await self.run(["pkg-install", String(mini.index), mini.id, name], timeoutMS: 1_800_000) }.value
+        guard result.ok else {
+            if result.output.hasPrefix("busy") { throw PluginManifest.Invalid("Close the Debian apps and Terminals of every mini VM, then install again: they run on the packages being changed.") }
+            throw PluginManifest.Invalid("\(name) could not be installed:\n\(result.output.suffix(600))")
+        }
+        guard let current = vms.first(where: { $0.id == mini.id }) else { return [] }
+        let apps = result.output.split(separator: "\n").compactMap { InstalledApp(package: name, line: $0, granted: granted) }
+        for app in apps {
+            try StubApps.make(app, in: current, socket: ptySocket)
+            put(app, in: mini.id)
+        }
+        return apps
+    }
+
+    /// A store app's files in the VM, once no mini VM has that version any more.
+    private func removeIfUnused(_ image: String) {
+        // shortcut: Debian packages stay installed when their apps are removed; add apt-get remove when users need the space.
+        guard image != InstalledApp.packagesImage else { return }
+        guard !vms.contains(where: { $0.apps.contains { $0.image == image } }) else { return }
+        enqueue { _ = await self.run(["rmi", image]) }
     }
 
     func uninstall(_ app: InstalledApp, from mini: MiniVM) {
         StubApps.remove(app, in: mini)
         update(mini.id) { $0.apps.removeAll { $0.id == app.id } }
-        // Still used by the same plugin in another mini VM: podman refuses, which is fine.
-        if let image = app.image { enqueue { _ = await self.run(["rmi", image]) } }
+        if let image = app.image { removeIfUnused(image) }
     }
 
     func wipe(_ mini: MiniVM) {

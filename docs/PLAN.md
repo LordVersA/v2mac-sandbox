@@ -39,7 +39,7 @@ SSH, RDP… are **separate plugin repos** built later; two tiny sample plugins p
 | Publishing | Release builds install only what the index lists; dev builds can sideload a local plugin folder. Submissions are PRs to the store repo; store CI posts a check report; you review with a checklist, merge, sign. |
 | Revocation | `revoked: [{id, version, reason}]` in the index; the sandbox stops that version and offers Update or Remove; data stays. |
 | Builds | Each plugin repo's CI builds its OCI layers at a tag; the index pins commit + every layer's SHA-256. |
-| SDK | Template repo (0BSD) + base images + docs + samples `hello-gui`, `hello-pty`. Plugins **must** build `FROM` a released base image digest (store CI enforces). |
+| SDK | Template repo (0BSD) + base + docs + samples `hello-gui`, `hello-pty`. Plugins **must** build `FROM` a released base digest (store CI enforces). The base is the sandbox's own root, so a plugin ships only its own layers (changed 2026-10-24 from per-plugin `docker save` archives of ~1 GB). |
 | Plugin API | Integer `api`, additive only. v1: manifest + launch, display `gui`/`pty`, exit facts, permissions. `settings` reserved for a later api. |
 | Display | Software path first (cage + wayvnc + Swift RFB). libkrun GPU spike **only if** M0 misses the target. |
 | Resources | RAM cap = ¼ of the Mac's memory (2–8 GB); boot on first app, shut down 5 min after the last; cgroup limits per mini VM. |
@@ -54,7 +54,7 @@ Everything marked **[verify]** is an unconfirmed assumption; M0 measures it befo
 | Link message types (`SandboxLink`) | `app` package (`V2MacCore/Sandbox/`) | Pure value types, tested; the helper uses them by path. |
 | Helper app (VM, vsock, sandbox core, gateway control, RFB client, Sandbox window, stubs, pty bridge, store client) | `sandbox` | SwiftPM + app target; depends on `V2MacCore` by path. |
 | VM agent + agent protocol | `sandbox` | Static Linux SDK build. |
-| Kernel config, rootfs (mmdebstrap), base images | `sandbox` | Same release as the helper. |
+| Kernel config, rootfs (mmdebstrap), base (that rootfs as an image) | `sandbox` | Same release as the helper. |
 | `index.json`, signing script, review checklist | `store` | |
 | Template, samples, plugin docs | `plugin-template` | |
 
@@ -80,7 +80,7 @@ cgroups v2, overlayfs); weekly CI bump PRs. `VZLinuxBootLoader` wants an uncompr
 
 **Hypervisor: Apple Virtualization.framework** (in the helper). Devices: virtio-blk ×2 (read-only
 rootfs + data disk), virtio-vsock, virtio-fs (`<data>/sandbox/exchange`, holding the `Shared` folders),
-virtio-sound, entropy, balloon. **No network device.** VZ has no 3D GPU for Linux guests.
+entropy, balloon. **No network device**, and no sound device (sound goes over vsock, below). VZ has no 3D GPU for Linux guests.
 
 **Agent** (Swift, static): the only process that owns vsock. Creates netns/pods, runs podman, the
 gateway relays, VNC and pty forwarding; accepts a fixed message set from the helper only.
@@ -128,16 +128,20 @@ source) is checked against the framebuffer and the size is capped before any wri
   and tinted `.icns`, re-signed ad-hoc. The stub owns window, Dock icon and menu; frames come from
   the helper (which boots the VM on demand, asking V2Mac to launch it if needed).
 - **Title capsule**: "🛡 V2Mac Protected · <VM> · 🇩🇪 Frankfurt"; red "Not connected" when the exit is down.
-- **Input [verify]**: Persian layout keysyms, IME, ⌘→Ctrl, trackpad scroll. **Audio**: virtio-sound +
-  PipeWire, per-app mute.
+- **Input [verify]**: Persian layout keysyms, IME, ⌘→Ctrl, trackpad scroll. **Audio**: each window app with `sound` or
+  `microphone` gets its own `snd-aloop` card (8 in the kernel) as card 0, with PipeWire in its container.
+  While the app plays or records, the VM bridges that card's other side over a vsock port of the app's
+  own; the helper asks the user at the first use (Allow, Don't Allow, Always Allow; per app in the
+  Sandbox window) and plays it through AVAudioEngine or records the Mac's mic. Denied means silence.
 - **Target**: smooth at 2× under ~1 core **[verify]**; plan B 1× + macOS scaling; plan C libkrun spike.
 
 ## 6. Plugin API v1
 ```
 api: 1                     # integer, additive only
 id, name, version, icon, publisher, source {repo, commit}
-from: <base-cli|base-gui digest>                # must be a released base image
-layers [{url, sha256, size}]
+from: <base digest>                              # must be a released base (a sandbox's root)
+layers [{url, sha256, size}]                     # exactly one: gzipped tar of its own layer tars
+description                                      # shown in the store window
 display: gui | pty
 launch {cmd, env}
 permissions [clipboard, shared, ssh-agent]      # user approves at install, runtime enforces
@@ -159,12 +163,15 @@ Plugins with a newer `api` are hidden with "Update V2Mac"; a breaking change mea
 - **Submission**: PR adding a plugin repo URL + tag. Store CI downloads the release, checks hashes,
   schema, `api`, `from` digest and permissions, and comments a report. Review at that commit with
   the checklist, merge, sign on the maintainer's Mac, push.
-- **Install**: layers via the link's `download` (or the shared cache), every SHA-256 checked against the
-  signed index, `podman load`. Dev builds also accept a local plugin folder ("Unverified").
+- **Install**: the archive via the link's `download` (or the shared cache), its SHA-256 checked against
+  the signed index, then `sandbox.sh load` unpacks its own layers once into `/data/apps/<sha256>`
+  (whiteouts as overlay whiteouts; opaque dirs and escapes refused). At launch that folder is stacked
+  on the VM's root with overlayfs (`approot`). Dev builds also accept a local plugin folder ("Unverified").
 - **Verify Installation** per plugin: source + commit, version, hashes, signature, permissions,
   re-hash on demand. "Verified" means "unchanged since published", not "safe".
-- **Base images** `base`, `base-cli`, `base-gui` (cage, wayvnc, PipeWire client, fonts, gtk3, mesa
-  llvmpipe) are released by `sandbox`.
+- **Base**: the VM's own root (Debian 13 with sway, wayvnc, PipeWire, GTK, fonts, mesa llvmpipe), made an
+  image by `Scripts/build-base.sh` and pushed to GHCR by each sandbox release. Every sandbox already has
+  it, so users download only what a plugin adds (Hello Window: 311 bytes instead of ~1 GB).
 - **SDK** = `plugin-template` (0BSD): Containerfile, `plugin.json`, icon, CI workflow, docs page,
   samples `hello-gui` (input, resize, clipboard, exit facts) and `hello-pty`.
 
@@ -205,6 +212,20 @@ Plugins with a newer `api` are hidden with "Update V2Mac"; a breaking change mea
   OpenConnect / IPsec in their own netns in the VM with a tiny SOCKS server, used by the host as a
   `socks` outbound over vsock; then V2Mac's TUN mode, system proxy and kill switch can use them too.
   Cost: those credentials live in the VM.
+- **Linux Packages** (workspace Phase 10, built 2026-10-24, not yet run in a VM): the store window's
+  Debian side searches (`sandbox.sh pkg-search`) and installs (`pkg-install`) any Debian package, apart
+  from the store. All packages share one root, `/data/apps/pkgs/root`: the upper layer of an overlay on
+  `/` while apt runs, and a lower layer (image word `pkgs`) for the apps it brings. Package lists live
+  apart in `/data/apps/pkgs/lists`, so search works while apps run. apt runs in a rootless container
+  on the target mini VM's network, so downloads go through its exit and `postinst` scripts stay
+  inside; it has the namespaced capabilities dpkg needs but no host paths. Installing waits until no
+  container runs on the packages (label `v2mac.pkgs`). Each `.desktop` file the package installs
+  becomes an app (`deb-<file>`, window or Terminal) in that mini VM, with the permissions approved at
+  install; the mini VM's Terminal and sideloads see the packages too. Debian's signatures are the
+  trust; the UI says these are not reviewed by V2Mac. First version leaves out: removing packages
+  (apps go, files stay), upgrades, icons, a streamed log, per-package roots, Flathub, and packages
+  whose files belong to other users (only one uid is mapped, so dpkg can't chown to them). After a
+  sandbox update the packages' copy of dpkg's status hides the new base's, so a reinstall may be needed.
 - GPU rendering (libkrun) if needed; plugin `settings` (api 2); more permissions.
 
 ## 11. Milestones (each behind "Sandbox (beta)", dev build first)
@@ -289,7 +310,8 @@ the app's copy back on the Mac, resize 1600×1000 → 1200×800, `~/V2Mac Sandbo
 `com.apple.quarantine` on what the VM writes. Changed: **sway** (headless, fullscreen-only config) instead of cage, since
 cage 0.2 lacks `wlr-data-control` and wayvnc's clipboard needs it. Clipboard needs the `clipboard` permission plus
 the mini VM's Paste-from-Mac / Copy-to-Mac switches (Mac→app enforced by the agent, app→Mac by the stub); text only.
-Audio: virtio-sound output + PipeWire in each window app's container (not checked by ear); no per-app mute yet.
+Audio: per-app loopback card bridged over vsock, asked at use (Chromium tested: plays, records the Mac mic,
+Don't Allow is silent, Always Allow persists; output not checked by ear). At most 8 apps with sound at once.
 Open: rootfs is 486 MB with the GUI stack (base images split it in M6); capsule doesn't turn red live; IME preview and
 caret-placed candidates; ⌘ shortcuts that clash with app menus.
 

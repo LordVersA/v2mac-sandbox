@@ -44,7 +44,9 @@ struct PluginManifest: Decodable, Equatable {
     }
 
     static let api = 1
-    static let knownPermissions = ["clipboard", "shared", "ssh-agent"]
+    static let knownPermissions = ["clipboard", "shared", "ssh-agent", "sound", "microphone"]
+    /// Granted at install, and asked again each time an open app first uses them.
+    static let askedPermissions = ["sound", "microphone", "ssh-agent"]
 
     struct Invalid: Error, LocalizedError {
         var errorDescription: String?
@@ -87,10 +89,10 @@ struct PluginManifest: Decodable, Equatable {
         return image
     }
 
-    /// A store plugin must also bring its image: https layers with a hash and a size.
+    /// A store plugin must also bring its files: one https archive of its own layers, with a hash and a size.
     func validateForStore(bases: Set<String> = Store.bases) throws {
         try validate()
-        guard let layers, !layers.isEmpty, layers.count <= 64, source != nil else { throw Invalid("\(id) has no layers.") }
+        guard let layers, layers.count == 1, source != nil else { throw Invalid("\(id) must bring exactly one archive.") }
         guard let from, bases.contains(from) else { throw Invalid("\(id) is not built on a released base image.") }
         for layer in layers {
             guard layer.url.scheme == "https" || Store.allowsLocal(layer.url), layer.sha256.count == 64,
@@ -118,6 +120,10 @@ struct InstalledApp: Codable, Identifiable, Equatable, Sendable {
     var source: PluginManifest.Source?
     var layers: [PluginManifest.Layer] = []
     var iconSvg: String?
+    /// The user's standing answer per asked permission: true Always Allow, false Don't Allow; none asks.
+    var answers: [String: Bool] = [:]
+    /// The Debian package it came from (Linux Packages); it runs on the shared package root.
+    var package: String?
 
     init(_ manifest: PluginManifest, granted: [String]) {
         id = manifest.id
@@ -131,6 +137,28 @@ struct InstalledApp: Codable, Identifiable, Equatable, Sendable {
     }
 
     func allows(_ permission: String) -> Bool { granted.contains(permission) }
+
+    /// sandbox.sh's image word for the shared Debian package root.
+    static let packagesImage = "pkgs"
+
+    /// A window or terminal app a Debian package brings: one "app" line of `sandbox.sh pkg-install`
+    /// (`app <gui|pty> <desktop file> <Name> <Exec>`, tab-separated).
+    init?(package: String, line: Substring, granted: [String]) {
+        let f = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+        guard f.count == 5, f[0] == "app", ["gui", "pty"].contains(f[1]), !f[3].isEmpty, !f[4].contains("\0") else { return nil }
+        let file = f[2].hasSuffix(".desktop") ? String(f[2].dropLast(8)) : f[2]
+        let id = "deb-" + String(file.map { AgentMessage.isWord(String($0)) ? $0 : "-" }.prefix(60))
+        // The desktop entry's field codes (%U for URLs to open…) have nothing to fill in at launch.
+        let exec = f[4].replacingOccurrences(of: "%%", with: "\u{1}").replacing(/%[A-Za-z]/, with: "").replacingOccurrences(of: "\u{1}", with: "%")
+        // Under sway's forced fullscreen browsers hide their tabs (as F11); the only window fills the screen anyway.
+        let cmd = f[1] == "gui"
+            ? "SWAYSOCK=$(ls \"$XDG_RUNTIME_DIR\"/sway-ipc.*.sock | head -n1) swaymsg 'for_window [all] fullscreen disable' >/dev/null; exec \(exec)"
+            : "exec \(exec)"
+        self.init(PluginManifest(api: 1, id: id, name: String(f[3].prefix(64)), version: "", display: f[1],
+                                 launch: .init(cmd: ["/bin/sh", "-c", cmd])), granted: granted)
+        image = Self.packagesImage
+        self.package = package
+    }
 
     /// Every mini VM's own shell, with nothing to install: the VM's root and no permissions. Its id
     /// starts with "." so no plugin can take it (plugin ids can't).
@@ -158,6 +186,8 @@ extension InstalledApp {
         source = try c.decodeIfPresent(PluginManifest.Source.self, forKey: .source)
         layers = try c.decodeIfPresent([PluginManifest.Layer].self, forKey: .layers) ?? []
         iconSvg = try c.decodeIfPresent(String.self, forKey: .iconSvg)
+        answers = try c.decodeIfPresent([String: Bool].self, forKey: .answers) ?? [:]
+        package = try c.decodeIfPresent(String.self, forKey: .package)
     }
 }
 

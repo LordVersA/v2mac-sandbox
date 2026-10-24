@@ -1211,24 +1211,24 @@
         }
       }
     },
-    "Use the SSH keys in your Mac's ssh-agent while it is open": {
+    "Use the SSH keys in your Mac's ssh-agent, after asking you": {
       "localizations": {
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "استفاده از کلیدهای SSH در ssh-agent مک تا وقتی باز است"
+            "value": "استفاده از کلیدهای SSH در ssh-agent مک، پس از پرسیدن از شما"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在其打开期间使用 Mac 的 ssh-agent 中的 SSH 密钥"
+            "value": "在征得你同意后使用 Mac 的 ssh-agent 中的 SSH 密钥"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Использовать SSH-ключи из ssh-agent вашего Mac, пока оно открыто"
+            "value": "Использовать SSH-ключи из ssh-agent вашего Mac, спросив вас"
           }
         }
       }
@@ -3077,6 +3077,644 @@
           "stringUnit": {
             "state": "translated",
             "value": "Оконное приложение"
+          }
+        }
+      }
+    },
+    "%@ in %@ wants to play sound.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ در %@ می‌خواهد صدا پخش کند."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ 中的 %1$@ 想要播放声音。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ в %@ хочет воспроизвести звук."
+          }
+        }
+      }
+    },
+    "%@ in %@ wants to use the SSH keys in your Mac's ssh-agent.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ در %@ می‌خواهد از کلیدهای SSH در ssh-agent مک شما استفاده کند."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ 中的 %1$@ 想要使用你 Mac 的 ssh-agent 中的 SSH 密钥。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ в %@ хочет использовать SSH-ключи из ssh-agent вашего Mac."
+          }
+        }
+      }
+    },
+    "%@ in %@ wants to use the microphone.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ در %@ می‌خواهد از میکروفون استفاده کند."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ 中的 %1$@ 想要使用麦克风。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ в %@ хочет использовать микрофон."
+          }
+        }
+      }
+    },
+    "Allow": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اجازه بده"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешить"
+          }
+        }
+      }
+    },
+    "Allow holds until the app is closed. Always Allow and Don't Allow can be changed in the app's menu in the Sandbox window.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«اجازه بده» تا بسته شدن برنامه معتبر است. «همیشه اجازه بده» و «اجازه نده» را می‌توانید در منوی برنامه در پنجرهٔ سندباکس تغییر دهید."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“允许”在关闭该应用前有效。“始终允许”和“不允许”可在沙盒窗口中该应用的菜单里更改。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Разрешить» действует, пока приложение открыто. «Всегда разрешать» и «Не разрешать» можно изменить в меню приложения в окне песочницы."
+          }
+        }
+      }
+    },
+    "Always Allow": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "همیشه اجازه بده"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "始终允许"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Всегда разрешать"
+          }
+        }
+      }
+    },
+    "Ask": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پرسیدن"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "询问"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Спрашивать"
+          }
+        }
+      }
+    },
+    "Don't Allow": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اجازه نده"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不允许"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не разрешать"
+          }
+        }
+      }
+    },
+    "Microphone": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "میکروفون"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "麦克风"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Микрофон"
+          }
+        }
+      }
+    },
+    "Play sound, after asking you": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پخش صدا، پس از پرسیدن از شما"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在征得你同意后播放声音"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Воспроизводить звук, спросив вас"
+          }
+        }
+      }
+    },
+    "SSH Keys": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کلیدهای SSH"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH 密钥"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH-ключи"
+          }
+        }
+      }
+    },
+    "Sound": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "صدا"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "声音"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Звук"
+          }
+        }
+      }
+    },
+    "Use the microphone, after asking you": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "استفاده از میکروفون، پس از پرسیدن از شما"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在征得你同意后使用麦克风"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Использовать микрофон, спросив вас"
+          }
+        }
+      }
+    },
+    "V2Mac Sandbox (beta)": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "سندباکس V2Mac (بتا)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "V2Mac 沙盒（测试版）"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Песочница V2Mac (бета)"
+          }
+        }
+      }
+    },
+    "Debian": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "دبیان"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Debian"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Debian"
+          }
+        }
+      }
+    },
+    "No Package Selected": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بسته‌ای انتخاب نشده"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选择软件包"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пакет не выбран"
+          }
+        }
+      }
+    },
+    "Search Debian packages": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جستجوی بسته‌های دبیان"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索 Debian 软件包"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поиск пакетов Debian"
+          }
+        }
+      }
+    },
+    "Searching Debian…": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "در حال جستجوی دبیان…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在搜索 Debian…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поиск в Debian…"
+          }
+        }
+      }
+    },
+    "Debian Unavailable": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "دبیان در دسترس نیست"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Debian 不可用"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Debian недоступен"
+          }
+        }
+      }
+    },
+    "Debian Packages": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بسته‌های دبیان"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Debian 软件包"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пакеты Debian"
+          }
+        }
+      }
+    },
+    "Type a name or a word. Any program from Debian's archive can be installed.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "یک نام یا کلمه بنویسید. هر برنامه‌ای از آرشیو دبیان قابل نصب است."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入名称或关键词。Debian 软件库中的任何程序都可以安装。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введите название или слово. Можно установить любую программу из архива Debian."
+          }
+        }
+      }
+    },
+    "From Debian, not reviewed by V2Mac": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "از دبیان، بررسی‌نشده توسط V2Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自 Debian，未经 V2Mac 审核"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Из Debian, не проверено V2Mac"
+          }
+        }
+      }
+    },
+    "Debian signs the package and checks it on download. It runs inside the mini VM and reaches the internet only through its exit, like every app here, but V2Mac hasn't checked what it does. Window apps it brings appear in the mini VM; command-line tools are in its Terminal.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "دبیان بسته را امضا می‌کند و هنگام دانلود بررسی می‌شود. مثل همهٔ برنامه‌های اینجا داخل مینی‌VM اجرا می‌شود و فقط از طریق خروجی آن به اینترنت می‌رسد، اما V2Mac کار آن را بررسی نکرده است. برنامه‌های پنجره‌دار آن در مینی‌VM ظاهر می‌شوند و ابزارهای خط فرمان در ترمینال آن هستند."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Debian 对软件包签名，下载时会进行校验。它和这里的所有应用一样在迷你虚拟机内运行，只通过其出口访问互联网，但 V2Mac 未检查它的行为。它带来的窗口应用会出现在迷你虚拟机中；命令行工具在其终端中。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Debian подписывает пакет, подпись проверяется при загрузке. Как и все приложения здесь, он работает в мини-ВМ и выходит в интернет только через её выход, но V2Mac не проверял, что он делает. Оконные приложения из него появятся в мини-ВМ, а утилиты командной строки — в её Терминале."
+          }
+        }
+      }
+    },
+    "It comes from Debian's archive and is not reviewed by V2Mac.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "از آرشیو دبیان می‌آید و توسط V2Mac بررسی نشده است."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它来自 Debian 软件库，未经 V2Mac 审核。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Он из архива Debian и не проверен V2Mac."
+          }
+        }
+      }
+    },
+    "%@ is installed": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ نصب شد"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已安装"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ установлен"
+          }
+        }
+      }
+    },
+    "It has no window app. Use it in the Terminal of any mini VM.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "برنامهٔ پنجره‌دار ندارد. از آن در ترمینال هر مینی‌VM استفاده کنید."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它没有窗口应用。请在任一迷你虚拟机的终端中使用。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У него нет оконного приложения. Используйте его в Терминале любой мини-ВМ."
+          }
+        }
+      }
+    },
+    "From Debian's package %@, not reviewed by V2Mac": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "از بستهٔ دبیان %@، بررسی‌نشده توسط V2Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自 Debian 软件包 %@，未经 V2Mac 审核"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Из пакета Debian %@, не проверено V2Mac"
+          }
+        }
+      }
+    },
+    "From Debian's package %@, signed by Debian and not reviewed by V2Mac.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "از بستهٔ دبیان %@، امضاشده توسط دبیان و بررسی‌نشده توسط V2Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自 Debian 软件包 %@，由 Debian 签名，未经 V2Mac 审核。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Из пакета Debian %@, подписан Debian и не проверен V2Mac."
+          }
+        }
+      }
+    },
+    "The first search of the day downloads Debian's package list, which can take a few minutes.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اولین جستجوی هر روز فهرست بسته‌های دبیان را دانلود می‌کند و ممکن است چند دقیقه طول بکشد."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每天的第一次搜索会下载 Debian 软件包列表，可能需要几分钟。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Первый поиск за день загружает список пакетов Debian, это может занять несколько минут."
           }
         }
       }
