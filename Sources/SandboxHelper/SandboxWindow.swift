@@ -134,7 +134,12 @@ struct SandboxWindow: View {
 
     private func select(_ vm: MiniVM?) { if let vm { selection = vm.id } }
 
+    private func openTerminal(_ vm: MiniVM) {
+        do { try gateway.openTerminal(vm) } catch { NSAlert(error: error).runModal() }
+    }
+
     @ViewBuilder private func vmActions(_ vm: MiniVM) -> some View {
+        Button("Open Terminal", systemImage: "apple.terminal") { openTerminal(vm) }
         Button("Show Shared Folder", systemImage: "folder") { NSWorkspace.shared.open(gateway.sharedFolder(vm)) }
         Button("Clone", systemImage: "plus.square.on.square") { select(gateway.add(cloning: vm)) }
         Divider()
@@ -304,6 +309,13 @@ private struct VMDetail<Actions: View>: View {
                 .font(.callout)
             }
             Spacer()
+            Button {
+                do { try gateway.openTerminal(vm) } catch { NSAlert(error: error).runModal() }
+            } label: {
+                Label("Terminal", systemImage: "apple.terminal")
+            }
+            .buttonStyle(.glass)
+            .help("Open a shell in \(vm.name), through its exit")
             Menu {
                 actions(vm)
             } label: {
@@ -332,6 +344,7 @@ private struct VMDetail<Actions: View>: View {
     private var apps: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 96, maximum: 120), spacing: 12)], alignment: .leading, spacing: 12) {
             ForEach(vm.apps) { app in appTile(app) }
+            ForEach(pending, id: \.key) { installTile($0.value) }
             addAppTile
         }
         .padding(.vertical, 6)
@@ -368,11 +381,35 @@ private struct VMDetail<Actions: View>: View {
             ?? (app.unverified ? String(localized: "Unverified: sideloaded, not from the V2Mac store") : String(localized: "Open \(app.name)")))
         .contextMenu {
             Button("Open", systemImage: "arrow.up.forward.app") { NSWorkspace.shared.open(StubApps.url(app, in: vm)) }
-            if let newer { Button("Update to \(newer.version)", systemImage: "arrow.down.circle") { installFromStore(newer, keeping: app.granted) } }
+            if let newer { Button("Update to \(newer.version)", systemImage: "arrow.down.circle") { model.install(newer, in: vm, keeping: app.granted) } }
             Button("Verify Installation…", systemImage: "checkmark.seal") { verify(app) }
             Divider()
             Button("Remove \(app.name)", systemImage: "trash", role: .destructive) { gateway.uninstall(app, from: vm) }
         }
+    }
+
+    /// Store installs into this mini VM that haven't finished.
+    private var pending: [(key: String, value: Gateway.Install)] {
+        gateway.installs.filter { $0.key.hasPrefix(vm.id + "/") }.sorted { $0.key < $1.key }
+    }
+
+    private func installTile(_ install: Gateway.Install) -> some View {
+        VStack(spacing: 6) {
+            Group {
+                if let fraction = install.fraction {
+                    ProgressView(value: fraction).progressViewStyle(.circular)
+                } else {
+                    ProgressView()
+                }
+            }
+            .controlSize(.small)
+            .frame(width: 52, height: 52)
+            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12, style: .continuous))
+            Text(install.name).font(.caption).lineLimit(1)
+            Text(install.fraction.map { String(localized: "Downloading \(Int($0 * 100))%") } ?? String(localized: "Installing…"))
+                .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func badge(_ symbol: String, _ color: Color) -> some View {
@@ -381,17 +418,7 @@ private struct VMDetail<Actions: View>: View {
     }
 
     private var addAppTile: some View {
-        Menu {
-            Section("V2Mac Store") {
-                ForEach(model.store.index?.plugins ?? [], id: \.id) { plugin in
-                    Button("\(plugin.name) \(plugin.version)") { installFromStore(plugin) }
-                }
-                .disabled(model.store.isExpired)
-                if let problem = model.store.problem { Text(problem) }
-            }
-            Divider()
-            Button("From Folder (Unverified)…") { addApp() }
-        } label: {
+        Button { model.openStore(vm.id) } label: {
             VStack(spacing: 6) {
                 Image(systemName: "plus")
                     .font(.system(size: 20, weight: .medium))
@@ -402,39 +429,10 @@ private struct VMDetail<Actions: View>: View {
             }
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity)
+            .contentShape(.rect)
         }
-        .menuStyle(.button)
         .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .help("Install an app in \(vm.name)")
-    }
-
-    /// Install or update from the signed index; an update keeps earlier approvals unless it asks for more.
-    private func installFromStore(_ plugin: PluginManifest, keeping granted: [String]? = nil) {
-        guard !model.store.isExpired else { return }
-        let asks = plugin.permissions ?? []
-        let approved: [String]? = if let granted, Set(asks).isSubset(of: granted) { asks.filter(granted.contains) } else { SandboxWindow.approve(plugin.name, asks: asks, into: vm.name) }
-        guard let approved else { return }
-        Task {
-            do { try await gateway.install(store: plugin, granted: approved, in: vm, download: model.download) }
-            catch { NSAlert(error: error).runModal() }
-        }
-    }
-
-    /// Dev sideload (plan "Publishing"): a plugin folder, its permissions approved by the user.
-    private func addApp() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.message = String(localized: "Choose a plugin folder (with plugin.json)")
-        guard panel.runModal() == .OK, let folder = panel.url else { return }
-        do {
-            let manifest = try PluginManifest.load(folder: folder)
-            guard let granted = SandboxWindow.approve(manifest.name, asks: manifest.permissions ?? [], into: vm.name, note: String(localized: "It is not from the V2Mac store (Unverified).")) else { return }
-            try gateway.install(manifest, granted: granted, in: vm)
-        } catch {
-            NSAlert(error: error).runModal()
-        }
+        .help("Get apps for \(vm.name) from the V2Mac Store")
     }
 
     /// Verify Installation (plan §7): where it came from and whether its layers are unchanged since

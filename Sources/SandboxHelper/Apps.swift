@@ -17,6 +17,11 @@ struct PluginManifest: Decodable, Equatable {
     var display: String
     var launch: Launch
     var permissions: [String]?
+    /// Shown in the store window.
+    var publisher: String?
+    var description: String?
+    var changelog: String?
+    var securityNotes: String?
     /// Store plugins only (plan §6): the OCI image archive(s), pinned by SHA-256.
     var layers: [Layer]?
     var source: Source?
@@ -107,6 +112,11 @@ struct InstalledApp: Codable, Identifiable, Equatable, Sendable {
 
     func allows(_ permission: String) -> Bool { granted.contains(permission) }
 
+    /// Every mini VM's own shell, with nothing to install: the VM's root and no permissions. Its id
+    /// starts with "." so no plugin can take it (plugin ids can't).
+    static let terminal = InstalledApp(PluginManifest(api: 1, id: ".terminal", name: "Terminal", version: "", display: "pty",
+                                                      launch: .init(cmd: ["/bin/bash", "-l"])), granted: [])
+
     /// `put` bodies for sandbox.sh `app`.
     var argvFile: String { cmd.map { $0 + "\0" }.joined() }
     var envFile: String { env.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)\n" }.joined() }
@@ -178,6 +188,16 @@ enum StubApps {
         }
         guard run("/usr/bin/codesign", ["--force", "--sign", "-", bundle.path]) else { throw PluginManifest.Invalid("Could not sign \(bundle.lastPathComponent).") }
         _ = run("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister", ["-f", bundle.path])
+    }
+
+    /// Opens the mini VM's built-in terminal (`InstalledApp.terminal`) in the user's Terminal.
+    static func openTerminal(in vm: MiniVM, socket: URL, folder: URL) throws {
+        let pty = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/v2mac-pty").path
+        let command = folder.appendingPathComponent("terminal-\(vm.id).command")
+        let words = [pty, socket.path, vm.id, InstalledApp.terminal.id, "Terminal — \(vm.name)"]
+        try ("#!/bin/sh\nexec " + words.map(quote).joined(separator: " ") + "\n").write(to: command, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: command.path)
+        NSWorkspace.shared.open(command)
     }
 
     static func remove(_ app: InstalledApp, in vm: MiniVM) {

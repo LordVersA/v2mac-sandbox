@@ -259,12 +259,42 @@ import V2MacCore
         update(mini.id) { vm in vm.apps.removeAll { $0.id == app.id }; vm.apps.append(app) }
     }
 
+    /// A store install in progress, by `installKey`: `fraction` while downloading, nil while loading.
+    struct Install: Equatable {
+        var name: String
+        var fraction: Double?
+    }
+    private(set) var installs: [String: Install] = [:]
+    static func installKey(_ mini: MiniVM, _ plugin: String) -> String { "\(mini.id)/\(plugin)" }
+
+    func openTerminal(_ mini: MiniVM) throws { try StubApps.openTerminal(in: mini, socket: ptySocket, folder: root) }
+
     /// A store plugin (plan §7 "Install"): each layer through V2Mac (hash-checked there, cached by hash,
     /// so an update fetches only changed ones), loaded into podman in the VM; the app runs from its image.
     func install(store manifest: PluginManifest, granted: [String], in mini: MiniVM, download: @escaping (PluginManifest.Layer) async -> URL?) async throws {
+        let key = Self.installKey(mini, manifest.id)
+        guard installs[key] == nil else { return }
+        let layers = manifest.layers ?? []
+        let total = Double(max(1, layers.reduce(0) { $0 + $1.size }))
+        var done: Int64 = 0
+        installs[key] = Install(name: manifest.name, fraction: 0)
+        defer { installs[key] = nil }
         var image: String?
-        for layer in manifest.layers ?? [] {
-            guard await download(layer) != nil else { throw PluginManifest.Invalid("A layer of \(manifest.name) could not be downloaded or did not match the store.") }
+        for layer in layers {
+            // V2Mac downloads into cache/<sha256>.part; its size is the progress.
+            let part = layerCache.appendingPathComponent(layer.sha256 + ".part").path
+            let poll = Task { [done] in
+                while !Task.isCancelled {
+                    let size = (try? FileManager.default.attributesOfItem(atPath: part)[.size] as? Int64) ?? 0
+                    installs[key]?.fraction = min(1, Double(done + size) / total)
+                    try? await Task.sleep(for: .milliseconds(300))
+                }
+            }
+            let downloaded = await download(layer)
+            poll.cancel()
+            guard downloaded != nil else { throw PluginManifest.Invalid("A layer of \(manifest.name) could not be downloaded or did not match the store.") }
+            done += layer.size
+            installs[key]?.fraction = nil
             let loaded = await enqueueResult { await self.run(["load", layer.sha256]) }.value
             guard loaded.ok, let id = loaded.output.split(separator: "\n").last.map(String.init), AgentMessage.isWord(id)
             else { throw PluginManifest.Invalid("\(manifest.name) could not be loaded in the sandbox.") }

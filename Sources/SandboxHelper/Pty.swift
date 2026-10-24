@@ -67,7 +67,8 @@ import Virtualization
         let gui = words.first == "gui"
         let ids = gui ? Array(words.dropFirst()) : words
         guard ids.count == (gui ? 5 : 2), let mini = gateway.vms.first(where: { $0.id == ids[0] }),
-              let app = mini.apps.first(where: { $0.id == ids[1] }), (app.display == "gui") == gui
+              let app = mini.apps.first(where: { $0.id == ids[1] }) ?? (ids[1] == InstalledApp.terminal.id ? .terminal : nil),
+              (app.display == "gui") == gui
         else { return reject("this app is no longer in the sandbox.") }
         if let revoked = store.index?.revocation(of: app) {
             return reject("\(app.name) \(app.version) was withdrawn from the store (\(revoked.reason)). Update or remove it in the Sandbox window.")

@@ -13,6 +13,7 @@ import V2MacCore
     private let quarantine = QuarantineWatcher(folder: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("V2Mac Sandbox"))
     private var ramCapMB = SandboxFiles.defaultRAMCapMB(physicalMemory: ProcessInfo.processInfo.physicalMemory)
     private var window: NSWindow?
+    private var storeWindow: NSWindow?
 
     public override init() {
         // The helper lives in <data>/sandbox/V2Mac Sandbox.app; the VM's files go next to it.
@@ -141,6 +142,7 @@ import V2MacCore
             self.window = window
             model.stop = { [weak self] in Task { await self?.vm.stop() } }
             model.start = { [weak self] in guard let self else { return }; vm.boot(ramCapMB: ramCapMB) }
+            model.openStore = { [weak self] in self?.showStore(for: $0) }
         }
         if window?.isVisible != true { vm.retain(ramCapMB: ramCapMB) }
         Task { await store.refresh() } // plan §7: when the window opens, at most daily
@@ -149,9 +151,33 @@ import V2MacCore
         NSApp.activate()
     }
 
+    /// The store window, installing into `vm` (or the first mini VM).
+    private func showStore(for id: MiniVM.ID?) {
+        model.storeTarget = id ?? model.storeTarget ?? gateway.vms.first?.id
+        if storeWindow == nil {
+            let host = NSHostingController(rootView: StoreWindow(model: model))
+            host.sceneBridgingOptions = [.toolbars, .title]
+            let window = NSWindow(contentViewController: host)
+            window.styleMask.insert(.fullSizeContentView)
+            window.setContentSize(NSSize(width: 860, height: 580))
+            window.title = String(localized: "V2Mac Store")
+            window.delegate = self
+            window.isReleasedWhenClosed = false
+            window.center()
+            storeWindow = window
+        }
+        // Installing needs the VM up, also when the Sandbox window is closed meanwhile.
+        if storeWindow?.isVisible != true { vm.retain(ramCapMB: ramCapMB) }
+        Task { await store.refresh() }
+        NSApp.setActivationPolicy(.regular)
+        storeWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate()
+    }
+
     public func windowWillClose(_ notification: Notification) {
         vm.release()
-        NSApp.setActivationPolicy(.accessory)
+        let other = notification.object as? NSWindow === window ? storeWindow : window
+        if other?.isVisible != true { NSApp.setActivationPolicy(.accessory) }
     }
 
     private func quit() {
@@ -168,7 +194,38 @@ import V2MacCore
     var start: () -> Void = {}
     var stop: () -> Void = {}
     @ObservationIgnored var download: (PluginManifest.Layer) async -> URL? = { _ in nil }
+    @ObservationIgnored var openStore: (MiniVM.ID?) -> Void = { _ in }
+    /// The mini VM the store window installs into.
+    var storeTarget: MiniVM.ID?
     let gateway: Gateway
     let store: StoreClient
     init(gateway: Gateway, store: StoreClient) { self.gateway = gateway; self.store = store }
+
+    /// Install or update from the signed index; an update keeps earlier approvals unless it asks for more.
+    func install(_ plugin: PluginManifest, in vm: MiniVM, keeping granted: [String]? = nil) {
+        guard !store.isExpired else { return }
+        let asks = plugin.permissions ?? []
+        let approved: [String]? = if let granted, Set(asks).isSubset(of: granted) { asks.filter(granted.contains) } else { SandboxWindow.approve(plugin.name, asks: asks, into: vm.name) }
+        guard let approved else { return }
+        Task {
+            do { try await gateway.install(store: plugin, granted: approved, in: vm, download: download) }
+            catch { NSAlert(error: error).runModal() }
+        }
+    }
+
+    /// Dev sideload (plan "Publishing"): a plugin folder, its permissions approved by the user.
+    func sideload(into vm: MiniVM) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.message = String(localized: "Choose a plugin folder (with plugin.json)")
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        do {
+            let manifest = try PluginManifest.load(folder: folder)
+            guard let granted = SandboxWindow.approve(manifest.name, asks: manifest.permissions ?? [], into: vm.name, note: String(localized: "It is not from the V2Mac store (Unverified).")) else { return }
+            try gateway.install(manifest, granted: granted, in: vm)
+        } catch {
+            NSAlert(error: error).runModal()
+        }
+    }
 }
