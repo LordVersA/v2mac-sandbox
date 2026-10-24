@@ -1,5 +1,0 @@
-# Terminal plugins (display "pty"): a shell and the usual tools, ssh for the ssh-agent permission.
-ARG BASE
-FROM ${BASE}
-RUN apt-get update && apt-get install -y --no-install-recommends bash-completion less nano openssh-client procps curl \
-    && rm -rf /var/lib/apt/lists/*

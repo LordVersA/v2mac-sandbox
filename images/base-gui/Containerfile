@@ -1,9 +1,0 @@
-# Window plugins (display "gui"): what the runtime starts in the app's container (sway, wayvnc,
-# wlr-randr, wtype, PipeWire) plus GTK, fonts with Persian, and software GL (llvmpipe).
-ARG BASE
-FROM ${BASE}
-RUN apt-get update && apt-get install -y --no-install-recommends sway wayvnc wlr-randr wtype \
-      pipewire pipewire-alsa wireplumber libgtk-3-0t64 libgl1-mesa-dri fonts-dejavu-core fonts-vazirmatn \
-      xdg-utils adwaita-icon-theme \
-    && rm -rf /var/lib/apt/lists/*
-COPY sway.conf /etc/v2mac/sway.conf

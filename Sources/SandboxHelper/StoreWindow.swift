@@ -46,10 +46,14 @@ struct StoreWindow: View {
         .navigationSubtitle(target.map { String(localized: "Installs into \($0.name)") } ?? String(localized: "No mini VM yet"))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Picker(selection: Binding(get: { target?.id }, set: { model.storeTarget = $0 })) {
-                    ForEach(gateway.vms) { vm in Text(vm.name).tag(Optional(vm.id)) }
+                // A Menu, not a toolbar Picker: the Picker drew an empty capsule with no name.
+                Menu {
+                    Picker("Install In", selection: Binding(get: { target?.id }, set: { model.storeTarget = $0 })) {
+                        ForEach(gateway.vms) { vm in Text(vm.name).tag(Optional(vm.id)) }
+                    }
+                    .pickerStyle(.inline)
                 } label: {
-                    Label("Install In", systemImage: "square.stack.3d.up")
+                    Label(target?.name ?? String(localized: "No mini VM yet"), systemImage: "shippingbox").labelStyle(.titleAndIcon)
                 }
                 .help("The mini VM apps are installed into")
                 .disabled(gateway.vms.isEmpty)
@@ -142,26 +146,26 @@ private struct StoreDetail: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 24) {
                 header
-                if let description = plugin.description { Text(description).font(.body) }
-                Divider()
-                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
-                    row("Version", plugin.version)
-                    row("Size", ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
-                    row("Type", plugin.display == "gui" ? String(localized: "Window app") : String(localized: "Terminal app"))
-                    if let publisher = plugin.publisher { row("Publisher", publisher) }
-                }
+                facts
+                if let description = plugin.description { Text(description).font(.title3).lineSpacing(2) }
                 section("Permissions") {
                     let asks = plugin.permissions ?? []
                     if asks.isEmpty {
-                        Text("No special permissions.").foregroundStyle(.secondary)
+                        Label("No special permissions.", systemImage: "checkmark.shield").foregroundStyle(.secondary)
                     } else {
-                        ForEach(asks, id: \.self) { Label(SandboxWindow.permissionText[$0, default: $0], systemImage: "key") }
+                        ForEach(asks, id: \.self) { ask in
+                            Label {
+                                Text(SandboxWindow.permissionText[ask, default: ask])
+                            } icon: {
+                                Image(systemName: Self.permissionIcon[ask, default: "key"]).foregroundStyle(.tint)
+                            }
+                        }
                     }
                 }
-                if let notes = plugin.securityNotes { section("Security Notes") { Text(notes) } }
-                if let changelog = plugin.changelog { section("What's New") { Text(changelog) } }
+                if let notes = plugin.securityNotes { section("Security Notes") { Text(notes).foregroundStyle(.secondary) } }
+                if let changelog = plugin.changelog { section("What's New") { Text(changelog).foregroundStyle(.secondary) } }
                 if let source = plugin.source {
                     section("Source") {
                         if let url = URL(string: source.repo) { Link(source.repo, destination: url) }
@@ -169,23 +173,51 @@ private struct StoreDetail: View {
                     }
                 }
             }
-            .padding(28)
-            .frame(maxWidth: 640, alignment: .leading)
+            .padding(32)
+            .frame(maxWidth: 720)
+            .frame(maxWidth: .infinity)
         }
     }
 
+    private static let permissionIcon = ["clipboard": "doc.on.clipboard", "shared": "folder", "ssh-agent": "key"]
+
     private var header: some View {
-        HStack(alignment: .center, spacing: 18) {
-            PluginIcon(plugin: plugin, size: 88)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(plugin.name).font(.title.weight(.semibold))
-                if let publisher = plugin.publisher { Text(publisher).foregroundStyle(.secondary) }
+        HStack(alignment: .center, spacing: 20) {
+            PluginIcon(plugin: plugin, size: 96)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(plugin.name).font(.largeTitle.weight(.bold))
+                if let publisher = plugin.publisher { Text(publisher).font(.title3).foregroundStyle(.secondary) }
                 Label("Verified: signed by the V2Mac store", systemImage: "checkmark.seal.fill")
-                    .font(.caption).foregroundStyle(.green)
+                    .font(.callout).foregroundStyle(.green)
                     .help("Unchanged since it was published. Verified doesn't mean safe: check its permissions.")
-                action.padding(.top, 6)
             }
+            Spacer(minLength: 16)
+            action
         }
+    }
+
+    /// The App Store's strip of short facts under the header.
+    private var facts: some View {
+        HStack(spacing: 0) {
+            fact("Version", plugin.version, "number")
+            Divider().frame(height: 36)
+            fact("Size", ByteCountFormatter.string(fromByteCount: size, countStyle: .file), "arrow.down.circle")
+            Divider().frame(height: 36)
+            fact("Type", plugin.display == "gui" ? String(localized: "Window") : String(localized: "Terminal"),
+                 plugin.display == "gui" ? "macwindow" : "apple.terminal")
+            Divider().frame(height: 36)
+            fact("Permissions", "\((plugin.permissions ?? []).count)", "hand.raised")
+        }
+        .padding(.vertical, 12)
+        .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 14, style: .continuous))
+    }
+
+    private func fact(_ title: LocalizedStringKey, _ value: String, _ symbol: String) -> some View {
+        VStack(spacing: 4) {
+            Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary).textCase(.uppercase)
+            Label(value, systemImage: symbol).font(.headline).lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder private var action: some View {
@@ -198,17 +230,20 @@ private struct StoreDetail: View {
             }
             .frame(width: 240)
         } else if let target, let installed {
-            HStack {
-                if installed.version != plugin.version, !installed.unverified {
-                    Button("Update") { model.install(plugin, in: target, keeping: installed.granted) }.buttonStyle(.glassProminent)
+            VStack(alignment: .trailing, spacing: 6) {
+                HStack {
+                    if installed.version != plugin.version, !installed.unverified {
+                        Button("Update") { model.install(plugin, in: target, keeping: installed.granted) }.buttonStyle(.glassProminent)
+                    }
+                    Button("Open") { NSWorkspace.shared.open(StubApps.url(installed, in: target)) }.buttonStyle(.glassProminent)
                 }
-                Button("Open") { NSWorkspace.shared.open(StubApps.url(installed, in: target)) }.buttonStyle(.glass)
+                .controlSize(.large)
                 Text("Installed in \(target.name)").font(.caption).foregroundStyle(.secondary)
             }
         } else {
-            HStack {
+            VStack(alignment: .trailing, spacing: 6) {
                 Button("Install") { if let target { model.install(plugin, in: target) } }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.glassProminent).controlSize(.large)
                     .disabled(target == nil || model.store.isExpired || model.state != .running || !gateway.ready)
                 if target == nil {
                     Text("Make a mini VM first.").font(.caption).foregroundStyle(.secondary)
@@ -219,17 +254,13 @@ private struct StoreDetail: View {
         }
     }
 
-    private func row(_ title: LocalizedStringKey, _ value: String) -> some View {
-        GridRow {
-            Text(title).foregroundStyle(.secondary)
-            Text(value)
-        }
-    }
-
     private func section(_ title: LocalizedStringKey, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.headline)
-            content()
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.title3.weight(.semibold))
+            VStack(alignment: .leading, spacing: 10) { content() }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 14, style: .continuous))
         }
     }
 }
