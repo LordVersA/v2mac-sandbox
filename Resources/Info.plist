@@ -2,6 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDevelopmentRegion</key><string>en</string>
 	<key>CFBundleExecutable</key><string>V2Mac Sandbox</string>
 	<key>CFBundleIdentifier</key><string>io.github.lordversa.v2mac.sandbox</string>
 	<key>CFBundleName</key><string>V2Mac Sandbox</string>
