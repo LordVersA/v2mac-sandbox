@@ -32,14 +32,15 @@ import Virtualization
     }
 
     /// Sends one request to the agent and waits for its answer; nil when the VM is down or the agent
-    /// says something unexpected. Requests are answered in order, one at a time.
-    func call(_ message: AgentMessage) async -> AgentMessage? {
+    /// says something unexpected. Requests are answered in order, one at a time, so `timeoutMS` must
+    /// outlast the slowest answer: a late one would be read as the next request's.
+    func call(_ message: AgentMessage, timeoutMS: Int32 = 180_000) async -> AgentMessage? {
         guard state == .running, let fd = agent?.fileDescriptor else { return nil }
         return await withCheckedContinuation { continuation in
             agentQueue.async {
                 let frame = message.frame
                 let sent = frame.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) } == frame.count
-                continuation.resume(returning: sent ? Self.readMessage(fd, timeoutMS: 180_000) : nil)
+                continuation.resume(returning: sent ? Self.readMessage(fd, timeoutMS: timeoutMS) : nil)
             }
         }
     }

@@ -120,8 +120,8 @@ import V2MacCore
 
     // MARK: Setup
 
-    private func run(_ words: [String]) async -> (ok: Bool, output: String) {
-        guard case .result(let status, let output)? = await vm.call(.run(words)) else {
+    private func run(_ words: [String], timeoutMS: Int32 = 180_000) async -> (ok: Bool, output: String) {
+        guard case .result(let status, let output)? = await vm.call(.run(words), timeoutMS: timeoutMS) else {
             log("sandbox.sh \(words.joined(separator: " ")): no answer from the agent")
             return (false, "no answer from the agent")
         }
@@ -295,9 +295,12 @@ import V2MacCore
             guard downloaded != nil else { throw PluginManifest.Invalid("A layer of \(manifest.name) could not be downloaded or did not match the store.") }
             done += layer.size
             installs[key]?.fraction = nil
-            let loaded = await enqueueResult { await self.run(["load", layer.sha256]) }.value
-            guard loaded.ok, let id = loaded.output.split(separator: "\n").last.map(String.init), AgentMessage.isWord(id)
-            else { throw PluginManifest.Invalid("\(manifest.name) could not be loaded in the sandbox.") }
+            // Unpacking a browser in the VM takes minutes, past the usual answer time.
+            let loaded = await enqueueResult { await self.run(["load", layer.sha256], timeoutMS: 1_800_000) }.value
+            guard loaded.ok, let id = loaded.output.split(separator: "\n").last.map(String.init), AgentMessage.isWord(id) else {
+                log("load \(layer.sha256): \(loaded.ok ? "unexpected answer" : "failed"): \(loaded.output.suffix(2000))")
+                throw PluginManifest.Invalid("\(manifest.name) could not be loaded in the sandbox.")
+            }
             image = id
         }
         guard let current = vms.first(where: { $0.id == mini.id }) else { return }
