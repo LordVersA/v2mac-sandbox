@@ -185,12 +185,13 @@ private struct StoreDetail: View {
         HStack(alignment: .center, spacing: 20) {
             PluginIcon(plugin: plugin, size: 96)
             VStack(alignment: .leading, spacing: 5) {
-                Text(plugin.name).font(.largeTitle.weight(.bold))
-                if let publisher = plugin.publisher { Text(publisher).font(.title3).foregroundStyle(.secondary) }
+                Text(plugin.name).font(.largeTitle.weight(.bold)).lineLimit(2).minimumScaleFactor(0.7)
+                if let publisher = plugin.publisher { Text(publisher).font(.title3).foregroundStyle(.secondary).lineLimit(1) }
                 Label("Verified: signed by the V2Mac store", systemImage: "checkmark.seal.fill")
-                    .font(.callout).foregroundStyle(.green)
+                    .font(.callout).foregroundStyle(.green).lineLimit(1).truncationMode(.tail)
                     .help("Unchanged since it was published. Verified doesn't mean safe: check its permissions.")
             }
+            .layoutPriority(1) // the name gets the room first; the button side shrinks
             Spacer(minLength: 16)
             action
         }
@@ -228,7 +229,7 @@ private struct StoreDetail: View {
                      ?? String(localized: "Installing in \(target.name)…"))
                     .font(.caption).foregroundStyle(.secondary).monospacedDigit()
             }
-            .frame(width: 240)
+            .frame(minWidth: 120, maxWidth: 220)
         } else if let target, let installed {
             VStack(alignment: .trailing, spacing: 6) {
                 HStack {
