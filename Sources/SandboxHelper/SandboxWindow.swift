@@ -369,9 +369,7 @@ private struct VMDetail<Actions: View>: View {
                     .overlay(alignment: .topTrailing) {
                         if revoked != nil {
                             badge("exclamationmark.octagon.fill", .red)
-                        } else if newer != nil {
-                            badge("arrow.down.circle.fill", .blue)
-                        } else if app.unverified {
+                        } else if newer == nil, app.unverified {
                             badge("questionmark.circle.fill", .orange)
                         }
                     }
@@ -383,6 +381,15 @@ private struct VMDetail<Actions: View>: View {
         .buttonStyle(.plain)
         .help(revoked.map { String(localized: "Withdrawn from the store: \($0.reason)") }
             ?? (app.unverified ? String(localized: "Unverified: sideloaded, not from the V2Mac store") : String(localized: "Open \(app.name)")))
+        // The update badge is its own button outside the tile's, so a click on it updates instead of opening.
+        .overlay(alignment: .top) {
+            if revoked == nil, let newer {
+                Button { model.install(newer, in: vm, keeping: app.granted) } label: { badge("arrow.down.circle.fill", .blue) }
+                    .buttonStyle(.plain)
+                    .offset(x: 18) // the icon's top-right corner: 52 pt wide, centred in the tile
+                    .help("Update to \(newer.version)")
+            }
+        }
         .contextMenu {
             Button("Open", systemImage: "arrow.up.forward.app") { NSWorkspace.shared.open(StubApps.url(app, in: vm)) }
             if let newer { Button("Update to \(newer.version)", systemImage: "arrow.down.circle") { model.install(newer, in: vm, keeping: app.granted) } }
