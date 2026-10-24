@@ -3,7 +3,7 @@ import Foundation
 import Observation
 
 /// The signed plugin index (plan §7, `../store`): `index.json` and `index.json.sig`, the base64
-/// Ed25519 signature of SHA-256(index.json) made on the maintainer's Ledger (M0 0.12).
+/// Ed25519 signature of SHA-256(index.json) made with the store key in the maintainer's Keychain.
 struct StoreIndex: Decodable, Equatable {
     struct Template: Decodable, Equatable {
         var id: String
@@ -30,9 +30,8 @@ struct StoreIndex: Decodable, Equatable {
 
 enum Store {
     static let indexURL = URL(string: "https://raw.githubusercontent.com/LordVersA/v2mac-store/main/index.json")!
-    /// The store key on the maintainer's Ledger (SSH/PGP Agent app, the fixed path in
-    /// `../store/Scripts/ledger-sign.py`), as in spike 0.12's `key.pub`.
-    static let publicKey = "sCtOaz07SFCyeuNRtk2TT9ZYLD03VhXjv3WlIiywnBs="
+    /// The store key in the maintainer's Keychain (`../store/Scripts/sign.swift`), as in `../store/key.pub`.
+    static let publicKey = "EfRyuiaKGlGqjDfqs0Vy1zaoMoDC+Aw4RHz+eEYXU6k="
 
     enum Refusal: Error, Equatable, LocalizedError {
         case badSignature, rollback(have: Int, got: Int), tooNew, unreadable

@@ -35,7 +35,7 @@ SSH, RDP… are **separate plugin repos** built later; two tiny sample plugins p
 | Kernel | **Our own minimal kernel** from the current kernel.org LTS; a weekly CI job builds new point releases, runs boot + leak probes and opens a PR. |
 | VM agent | **Swift**, built with the Static Linux SDK; agent protocol types shared with the helper in one package. |
 | Repos | One `sandbox` repo (helper, agent, protocol, image build); it uses `../app/Packages/V2MacCore` by path, CI checks out the app at a pinned tag beside it. Plus `store` and `plugin-template`. |
-| Store | Separate repo, one `index.json` signed offline **on a Ledger Nano S Plus/X** (Ed25519 via the SSH/PGP Agent app's generic-hash command: signature over SHA-256 of the file, sent by our own `ledgerblue` script; the recovery phrase is the backup; M0 0.12). Expires after **90 days**; a GitHub Action opens an issue at 60. |
+| Store | Separate repo, one `index.json` signed **on the maintainer's Mac** (Ed25519 key in the login Keychain, no trusted apps so each use asks for the password; signature over SHA-256 of the file by `store/Scripts/sign.swift`; a paper copy of the key is the backup. Changed 2026-10-24 from the Ledger of M0 0.12). Expires after **90 days**; a GitHub Action opens an issue at 60. |
 | Publishing | Release builds install only what the index lists; dev builds can sideload a local plugin folder. Submissions are PRs to the store repo; store CI posts a check report; you review with a checklist, merge, sign. |
 | Revocation | `revoked: [{id, version, reason}]` in the index; the sandbox stops that version and offers Update or Remove; data stays. |
 | Builds | Each plugin repo's CI builds its OCI layers at a tag; the index pins commit + every layer's SHA-256. |
@@ -151,14 +151,14 @@ Plugins with a newer `api` are hidden with "Update V2Mac"; a breaking change mea
 `api: 1` keeps working.
 
 ## 7. Store, trust, SDK
-- **`store` repo**: `index.json` + `index.json.sig` (base64 Ed25519 over SHA-256(index), signed on the Ledger;
+- **`store` repo**: `index.json` + `index.json.sig` (base64 Ed25519 over SHA-256(index), signed with the Keychain key on the maintainer's Mac;
   public key pinned in the helper, verified with CryptoKit `Curve25519.Signing`). Fields: `version`
   (monotonic, rollback refused), `expires` (90 days; installs/updates blocked after, running plugins
   untouched), `minApi`, `plugins[]` (full manifests, pinned commit + layer hashes), `templates[]`,
   `revoked[]`. Checked when the Sandbox window opens and daily.
 - **Submission**: PR adding a plugin repo URL + tag. Store CI downloads the release, checks hashes,
   schema, `api`, `from` digest and permissions, and comments a report. Review at that commit with
-  the checklist, merge, sign on the Ledger, push.
+  the checklist, merge, sign on the maintainer's Mac, push.
 - **Install**: layers via the link's `download` (or the shared cache), every SHA-256 checked against the
   signed index, `podman load`. Dev builds also accept a local plugin folder ("Unverified").
 - **Verify Installation** per plugin: source + commit, version, hashes, signature, permissions,
@@ -181,7 +181,7 @@ Plugins with a newer `api` are hidden with "Update V2Mac"; a breaking change mea
 | Other Mac processes | get server configs | socketpair only, no listening socket; helper hash checked before launch |
 | Other Mac processes | hijack per-VM inbounds | 127.0.0.1 + per-VM VLESS UUIDs |
 | Swapped helper or image | run attacker code | SHA-256 pinned in each V2Mac release |
-| Swapped plugin / frozen index | supply chain | Ledger-signed index, version + 90-day expiry, revoked list, per-layer SHA-256, pinned commits, enforced base |
+| Swapped plugin / frozen index | supply chain | signed index (Keychain key on the maintainer's Mac), version + 90-day expiry, revoked list, per-layer SHA-256, pinned commits, enforced base |
 | Network change, sleep, main VPN toggle | direct leak | no direct path exists; sandbox core binds the NIC like the main core |
 | Later: L3 VPN adapters (§10) | VPN credentials in the VM | stated in UI; only for those adapters |
 
@@ -294,13 +294,13 @@ Open: rootfs is 486 MB with the GUI stack (base images split it in M6); capsule 
 caret-placed candidates; ⌘ shortcuts that clash with app menus.
 
 ### M5 — Store and templates
-1. `store` repo: index format, Ledger signing script, expiry reminder workflow, submission CI, checklist.
+1. `store` repo: index format, signing script (Ledger until 2026-10-24, now Keychain), expiry reminder workflow, submission CI, checklist.
 2. Helper: index + manifest checks (signature, rollback, expiry, revocation, `api`, `from`).
 3. Install/update (changed layers only)/remove, Verify Installation, revoked handling.
 4. Add sheet: Empty / Template / Clone.
 *Done when:* tampered layer/index and expired index are refused; a template makes a working mini VM.
-**Done locally** (2026-10-22): `../store` has the index format, `Scripts/ledger-sign.py sign index.json` (refuses a
-Ledger whose key isn't `key.pub`), `prepare-index.py` (version + 1, 90-day expiry, add/revoke/template),
+**Done locally** (2026-10-22): `../store` has the index format, `Scripts/sign.swift sign index.json` (Keychain key; refuses a
+key that isn't `key.pub`; was `ledger-sign.py` until 2026-10-24), `prepare-index.py` (version + 1, 90-day expiry, add/revoke/template),
 `check-submission.py` (same rules as the helper, release assets only, tag commit = `source.commit`, `from` in
 `bases.json`), the expiry-issue and submission-comment workflows (the base branch's checker judges a PR) and
 `REVIEW.md`; `index.json` v1 is empty and unsigned until the user signs it. Helper: `Store.verify` (pinned key,
