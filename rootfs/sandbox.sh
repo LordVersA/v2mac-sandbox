@@ -224,7 +224,7 @@ gui) # gui <token> <n> <id> <plugin> <disposable> <shared> <clipboard> <sound po
       wlr-randr --output HEADLESS-1 --custom-mode "$0" --scale "$1"; shift
       # pipewire-pulse: most apps (Chromium too) play and record through PulseAudio.
       if [ -d /dev/snd ]; then pipewire & sleep 0.3; wireplumber & pipewire-pulse & fi
-      wayvnc -L debug --unix-socket /run/vnc/vnc.sock & "$@"; echo "DEBUG app exited $? sway $(kill -0 $sway 2>/dev/null && echo alive || echo gone)"
+      wayvnc --unix-socket /run/vnc/vnc.sock & "$@"
       # An app can start a new process of itself and exit (Firefox does on some starts): the session lasts
       # while any process runs but sway, wayvnc and the sound ones.
       while pgrep -v -x "sh|sleep|sway|wayvnc|pipewire|wireplumber|pipewire-pulse" >/dev/null; do sleep 1; done
@@ -242,7 +242,6 @@ gui-size) # gui-size <token> <width> <height> <scale>: the window was resized
 gui-stop) # gui-stop <token>
   int "$2"
   asapp podman rm -f -t0 "gui-$2" >/dev/null 2>&1 || true
-  { grep -vE "dbus|D-Bus|rtkit|mod\.|wp-|s-monitors|pw\.|spa\.|GetShader|extension|void main|^0:" "$R/gui-$2.log" | tail -n 40; tail -n 15 "$R/gui-$2/sway.log"; grep -E " - \[" "$R/gui-$2.log" | grep -v "frame\|damage" | tail -n 40; grep -E "^\[E\]|^E " "$R/gui-$2.log" | grep -vE "dbus|D-Bus|rtkit" | tail -n 10; } > /dev/console 2>&1 || true # DEBUG: remove
   rm -rf "$R/gui-$2" "$R/gui-$2.log"
   for f in "$R"/card-*/token; do [ "$(cat "$f" 2>/dev/null)" = "$2" ] && rm -rf "${f%/token}"; done
   ;;

@@ -201,14 +201,12 @@ func serveGui(_ c: Int32) -> Never {
     let token = String(getpid())
     let app = script(["gui", token] + words, wait: false)
     var vnc: Int32 = -1
-    let started = time(nil) // DEBUG: remove
     for _ in 0..<300 where vnc < 0 {
         usleep(100_000)
         vnc = connectUnix("/run/v2mac/gui-\(token)/vnc.sock")
         var status: Int32 = 0
         if vnc < 0, app > 0, waitpid(app, &status, WNOHANG) == app { break } // the app ended before showing
     }
-    print("agent: gui \(token) screen \(vnc >= 0 ? "up" : "missing") after \(time(nil) - started) s") // DEBUG: remove
     if vnc >= 0 {
         var filter = RFBClientFilter(clipboard: words[5] == "1")
         var fds = [pollfd(fd: c, events: Int16(POLLIN), revents: 0), pollfd(fd: vnc, events: Int16(POLLIN), revents: 0)]
@@ -231,7 +229,6 @@ func serveGui(_ c: Int32) -> Never {
                 guard n > 0, writeAll(c, Array(buf[0..<n])) else { break relay }
             }
         }
-        print("agent: gui \(token) ended after \(time(nil) - started) s, Mac side \(fds[0].revents) app side \(fds[1].revents)") // DEBUG: remove
         close(vnc)
     }
     close(c)
