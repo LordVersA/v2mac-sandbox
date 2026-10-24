@@ -14,7 +14,7 @@ BIN=$(swift build -c release --show-bin-path)
 cp "$BIN/V2MacSandbox" "$APP/Contents/MacOS/V2Mac Sandbox"
 cp "$BIN/SandboxStub" "$APP/Contents/MacOS/v2mac-stub"
 cp "$BIN/V2MacPty" "$APP/Contents/MacOS/v2mac-pty"
-cp out/Image out/rootfs.erofs "$APP/Contents/Resources/"
+cp out/Image out/rootfs.erofs Resources/AppIcon.icns "$APP/Contents/Resources/"
 # The helper's and generated apps' texts in fa/zh-Hans/ru (Apps.swift copies the .lproj folders).
 xcrun xcstringstool compile Resources/Localizable.xcstrings --output-directory "$APP/Contents/Resources"
 # Without an en.lproj, macOS picks the next language in the user's list (fa for en-US, fa) over English.
