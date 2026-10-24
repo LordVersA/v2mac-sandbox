@@ -115,7 +115,11 @@ struct SandboxWindow: View {
         switch model.state {
         case .stopped: Button("Start", systemImage: "play.fill") { model.start() }.help("Start the sandbox")
         case .running: Button("Stop", systemImage: "stop.fill") { model.stop() }.help("Stop the sandbox and close its apps")
-        case .booting, .stopping: ProgressView().controlSize(.small)
+        case .booting, .stopping:
+            // In a button, so the toolbar gives it the same round glass as its neighbours, not a sliver.
+            Button {} label: { ProgressView().controlSize(.small).frame(width: 18, height: 18) }
+                .disabled(true)
+                .help(model.state == .booting ? "Starting the sandbox…" : "Stopping the sandbox…")
         }
     }
 
