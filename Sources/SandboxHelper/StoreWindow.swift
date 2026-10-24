@@ -188,7 +188,10 @@ private struct StoreDetail: View {
                 Text(plugin.name).font(.largeTitle.weight(.bold)).lineLimit(2).minimumScaleFactor(0.7)
                 if let publisher = plugin.publisher { Text(publisher).font(.title3).foregroundStyle(.secondary).lineLimit(1) }
                 Label("Verified: signed by the V2Mac store", systemImage: "checkmark.seal.fill")
-                    .font(.callout).foregroundStyle(.green).lineLimit(1).truncationMode(.tail)
+                    .font(.callout.weight(.medium)).foregroundStyle(.green).lineLimit(1).truncationMode(.tail)
+                    .padding(.horizontal, 9).padding(.vertical, 4)
+                    .background(.green.opacity(0.14), in: .capsule)
+                    .padding(.top, 4)
                     .help("Unchanged since it was published. Verified doesn't mean safe: check its permissions.")
             }
             .layoutPriority(1) // the name gets the room first; the button side shrinks
@@ -231,15 +234,21 @@ private struct StoreDetail: View {
             }
             .frame(minWidth: 120, maxWidth: 220)
         } else if let target, let installed {
-            VStack(alignment: .trailing, spacing: 6) {
+            VStack(alignment: .trailing, spacing: 8) {
+                let update = installed.version != plugin.version && !installed.unverified
                 HStack {
-                    if installed.version != plugin.version, !installed.unverified {
+                    if update {
                         Button("Update") { model.install(plugin, in: target, keeping: installed.granted) }.buttonStyle(.glassProminent)
+                        Button("Open") { NSWorkspace.shared.open(StubApps.url(installed, in: target)) }.buttonStyle(.glass)
+                    } else {
+                        Button("Open") { NSWorkspace.shared.open(StubApps.url(installed, in: target)) }.buttonStyle(.glassProminent)
                     }
-                    Button("Open") { NSWorkspace.shared.open(StubApps.url(installed, in: target)) }.buttonStyle(.glassProminent)
                 }
                 .controlSize(.large)
-                Text("Installed in \(target.name)").font(.caption).foregroundStyle(.secondary)
+                Label("Installed in \(target.name)", systemImage: "checkmark.circle.fill")
+                    .font(.caption.weight(.medium)).foregroundStyle(.green).lineLimit(1).fixedSize()
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(.green.opacity(0.14), in: .capsule)
             }
         } else {
             VStack(alignment: .trailing, spacing: 6) {
