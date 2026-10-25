@@ -1,6 +1,7 @@
 # Push a tag vX.Y.Z: builds agent, kernel and rootfs on arm64 Linux, the base plugins build on (that
 # rootfs as an image, pushed to GHCR; its digest becomes the helper's bases.json), then the helper on
-# macOS, and publishes V2MacSandbox.zip with pin.json. The V2Mac release that follows pins that pin.json.
+# macOS, and publishes the bundle file by file with its manifest files.json, bsdiff patches of the rootfs
+# from the last 3 releases (docs/delta-updates.md) and pin.json. The V2Mac release that follows pins that pin.json.
 name: Release
 on:
   push: { tags: ["v*"] }
@@ -43,8 +44,20 @@ jobs:
           path: |
             sandbox/out/Image
             sandbox/out/rootfs.erofs
+  patches:
+    needs: image
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: image, path: out }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq bsdiff
+      - env: { GH_TOKEN: "${{ github.token }}" }
+        run: Scripts/make-patches.sh "${{ github.ref_name }}"
+      - uses: actions/upload-artifact@v4
+        with: { name: patches, path: out/patches, if-no-files-found: ignore }
   helper:
-    needs: [image, bases]
+    needs: [image, bases, patches]
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -57,11 +70,14 @@ jobs:
         with: { name: image, path: sandbox/out }
       - uses: actions/download-artifact@v4
         with: { name: bases, path: sandbox/out/images }
+      - uses: actions/download-artifact@v4
+        continue-on-error: true # no earlier release, no patches
+        with: { name: patches, path: sandbox/out/patches }
       - working-directory: sandbox
         env:
           VERSION: ${{ github.ref_name }}
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=${VERSION#v} Scripts/build-helper.sh
-          Scripts/package.sh "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/V2MacSandbox.zip"
-          gh release create "${{ github.ref_name }}" out/V2MacSandbox.zip out/pin.json out/images/bases.json --title "${{ github.ref_name }}" --notes "Pin: \`$(cat out/pin.json)\`"
+          Scripts/package.sh "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/files.json"
+          gh release create "${{ github.ref_name }}" out/release/* out/pin.json out/images/bases.json --title "${{ github.ref_name }}" --notes "Pin: \`$(cat out/pin.json)\`"

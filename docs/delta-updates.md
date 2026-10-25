@@ -56,6 +56,25 @@ files.
 | D3 | App: `SandboxPin` points to the manifest; planning, per-file download, copy/patch/full, update sheet size. Package tests. Spec 12.11 and the wiki Sandbox page ×4; String Catalogs ×3 for any new text. | app, wiki |
 | D4 | Check end to end with the dev build: v1.0.0 installed → new release served locally (`python3 -m http.server`, `-debugSandboxPin`): only the patch and changed files are fetched; break the patch's hash and see the full download take over; break the zip and see the old sandbox kept. | app, sandbox |
 
+## Status (2026-10-25)
+- **D0 — Go.** (a) Two clean builds give identical files once the rootfs gets a fixed erofs UUID (`-U`)
+  and a fixed `/etc/hostname` (mmdebstrap copied the build container's random one); the kernel and the
+  helper (`build-helper.sh` from an empty `.build`) were identical already. (b) rootfs v1.0.0 → main:
+  405 KB patch against a 354 MB zip (0.1 %); the uncompressed erofs was not tried, it is not needed.
+  (c) `/usr/bin/bspatch` on 483 MB: 0.6 s, 0.97 GB peak; it takes Debian's `bsdiff` output (also a
+  package test fixture). (d) Debian `bsdiff` in Docker on this Mac: 2 min 21 s, 4.2 GB peak; not yet
+  measured on the CI runner (a private repo's arm64 runner has 8 GB).
+- **D1, D2** done locally: `package.sh` writes `out/release/` (per-file zips named after their path,
+  `Contents/` dropped and `/` and spaces as `_`; patches; `files.json` with names relative to it) and
+  `out/pin.json`; `make-patches.sh` and the release job `patches`. Not yet run in CI (needs a tag).
+- **D3** done: app `SandboxManifest`/`SandboxFiles.plan`/`install`, package tests, spec 12.11, wiki ×4.
+  No new strings. The app's built-in pin still names v1.0.0's zip, which the new code cannot install:
+  the next V2Mac release must pin the next sandbox tag's `pin.json` (Phase 8's release order).
+- **D4** done with the dev build and a local release: v1.0.0 → main fetched 2.0 MB (the rootfs patch
+  and 8 small changed files; kernel, icon and strings copied), booted in 6 s; a patch with a wrong hash
+  fell back to the rootfs zip; a broken helper zip failed the update and kept v1.0.0. Open: the same
+  from 3 earlier releases, which needs releases made by the new CI.
+
 **Done when:** a dev build updating from each of the last 3 releases downloads only the patch and the
 changed files, an older install falls back to full files, and all hash failures keep the installed
 sandbox.
