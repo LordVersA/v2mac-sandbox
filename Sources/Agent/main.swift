@@ -200,6 +200,8 @@ func serveGui(_ c: Int32) -> Never {
     guard case .gui(let words)? = readFrame(c), words.count == 12 else { exit(1) }
     let token = String(getpid())
     let app = script(["gui", token] + words, wait: false)
+    let started = time(nil)
+    print("agent: gui \(token) \(words[2]) in mini VM \(words[0]) starting")
     var vnc: Int32 = -1
     for _ in 0..<300 where vnc < 0 {
         usleep(100_000)
@@ -207,6 +209,7 @@ func serveGui(_ c: Int32) -> Never {
         var status: Int32 = 0
         if vnc < 0, app > 0, waitpid(app, &status, WNOHANG) == app { break } // the app ended before showing
     }
+    print("agent: gui \(token) screen \(vnc >= 0 ? "up" : "missing") after \(time(nil) - started) s")
     if vnc >= 0 {
         var filter = RFBClientFilter(clipboard: words[5] == "1")
         var fds = [pollfd(fd: c, events: Int16(POLLIN), revents: 0), pollfd(fd: vnc, events: Int16(POLLIN), revents: 0)]
@@ -229,6 +232,7 @@ func serveGui(_ c: Int32) -> Never {
                 guard n > 0, writeAll(c, Array(buf[0..<n])) else { break relay }
             }
         }
+        print("agent: gui \(token) ended after \(time(nil) - started) s, closed by the \(fds[0].revents != 0 ? "Mac" : "app") side")
         close(vnc)
     }
     close(c)

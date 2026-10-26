@@ -123,6 +123,11 @@ import Virtualization
             VZVirtioBlockDeviceConfiguration(attachment: try VZDiskImageStorageDeviceAttachment(url: dataDisk, readOnly: false)),
         ]
         let log = root.appendingPathComponent("vm.log")
+        // The previous boot's console stays as vm.log.1: a problem is often reported after a restart.
+        // shortcut: no cap within one boot (about 35 lines per window app), cap it if a VM ever runs for weeks.
+        let previous = root.appendingPathComponent("vm.log.1")
+        try? FileManager.default.removeItem(at: previous)
+        try? FileManager.default.moveItem(at: log, to: previous)
         FileManager.default.createFile(atPath: log.path, contents: nil, attributes: [.posixPermissions: 0o600])
         console = try FileHandle(forWritingTo: log)
         let serial = VZVirtioConsoleDeviceSerialPortConfiguration()
@@ -193,4 +198,15 @@ import Virtualization
     }
 }
 
-func log(_ text: String) { print("[v2mac-sandbox] \(text)") }
+/// stdout, and `sandbox.log` next to the helper; at 1 MB it becomes `sandbox.log.1`, so the two stay under 2 MB.
+func log(_ text: String) {
+    print("[v2mac-sandbox] \(text)")
+    let file = Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("sandbox.log").path
+    var info = stat()
+    if stat(file, &info) == 0, info.st_size > 1 << 20 { rename(file, file + ".1") }
+    let fd = open(file, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0o600)
+    guard fd >= 0 else { return }
+    let line = Array("\(Date().ISO8601Format()) \(text)\n".utf8)
+    _ = line.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
+    close(fd)
+}

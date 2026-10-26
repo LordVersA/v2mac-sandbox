@@ -241,7 +241,9 @@ gui-size) # gui-size <token> <width> <height> <scale>: the window was resized
   ;;
 gui-stop) # gui-stop <token>
   int "$2"
-  asapp podman rm -f -t0 "gui-$2" >/dev/null 2>&1 || true
+  asapp podman rm -f -i -t0 "gui-$2" >/dev/null 2>&1 || echo "gui $2: podman rm failed" >/dev/console
+  # The app's last words in vm.log (the console), without the sound and D-Bus chatter; 30 lines at most.
+  grep -vE "dbus|D-Bus|rtkit|pw\.|spa\.|wp-|mod\." "$R/gui-$2.log" 2>/dev/null | tail -n 30 | sed "s/^/gui $2: /" >/dev/console 2>&1 || true
   rm -rf "$R/gui-$2" "$R/gui-$2.log"
   for f in "$R"/card-*/token; do [ "$(cat "$f" 2>/dev/null)" = "$2" ] && rm -rf "${f%/token}"; done
   ;;

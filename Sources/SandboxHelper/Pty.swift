@@ -62,6 +62,7 @@ import Virtualization
 
     private func open(_ c: Int32, _ words: [String]) async {
         func reject(_ text: String) {
+            log("open \(words.joined(separator: " ")): \(text)")
             let bytes = Array("v2mac-pty: \(text)\r\n".utf8)
             _ = bytes.withUnsafeBytes { write(c, $0.baseAddress, $0.count) }
             close(c)
